@@ -1,0 +1,274 @@
+<!-- BEGIN_TF_DOCS -->
+# iac
+
+Root module that creates and configures this repository on GitHub:
+repository settings, rulesets, environments, Actions permissions, and the
+variables the workflows read. Changes to repo governance are made here,
+reviewed in a PR, and applied — not clicked in the GitHub UI.
+
+This is a **root module**, not a shared module: it's never consumed or
+released, so it isn't bound by the shared-module OpenTofu floor and it
+commits its `.terraform.lock.hcl`. It's split by file rather than into
+several root modules because everything in it hangs off the one
+repository; split it only if it grows to manage other repos or org-level
+settings.
+
+| File | Manages |
+| --- | --- |
+| `repository.tf` | Repository settings, security features |
+| `rulesets.tf` | `main` branch ruleset, release tag ruleset |
+| `environments.tf` | `integration`, `iac-plan`, and `iac-apply` environments |
+| `actions.tf` | Workflow token permissions, allowed actions, fork PR approval, variables |
+| `scripts/` | Settings the provider can't manage, applied via `local-exec` |
+
+PR validation checks `iac/` (fmt, validate, tflint, trivy, terraform-docs,
+tests) on every PR. The **iac workflow**
+(`.github/workflows/iac.yaml`) plans every PR that touches `iac/`, posts
+the plan on the PR, and applies it once you approve — see
+[Making a change](#making-a-change).
+
+## Prerequisites
+
+The iac workflow needs no local setup once it's enabled (see
+[Enabling the iac workflow](#enabling-the-iac-workflow)). To plan or apply
+by hand — bootstrapping, enabling the workflow, or when it's unavailable:
+
+- Tools from `iac/mise.toml`: run `mise install` in this directory.
+- **GitHub:** `gh auth login` as the repository owner. The provider uses
+  `GITHUB_TOKEN` if set, otherwise `gh auth token`; the classic `repo` scope
+  is enough.
+- **Azure (state):** `az login` with the *Storage Blob Data Contributor* role
+  on the state container configured in `backend.tf` (created once, outside
+  this module).
+
+Configuration values live in the committed `terraform.tfvars`. It holds
+only non-secret identifiers — never put a secret in it. It's committed so
+that `main` fully describes the repository, which is what makes applying
+`main` a real rollback.
+
+## Making a change
+
+Changes are applied **from the PR, before merging**, so `main` only ever
+records settings that are known to apply cleanly:
+
+1. Open a PR with the `iac/` change from a branch in this repo. The iac
+   workflow's **Plan** job plans GitHub's merge of the PR into `main` —
+   so the plan never undoes an `iac/` change merged since the branch was
+   cut — and posts it as a PR comment. The comment is updated on every
+   push, and flags any resource the plan destroys.
+2. Review the plan. To apply it, approve the `iac-apply` deployment on the
+   workflow run the comment links to. The **Apply** job then applies
+   exactly that plan and updates the comment with the result.
+3. If it applied and behaves as intended, merge the PR.
+4. If not, **roll back by applying `main`** and close the PR — nothing
+   needs reverting in git. Run the iac workflow on `main` (Actions → iac →
+   Run workflow) and approve its apply.
+
+The Apply job refuses a plan that's no longer what would merge: if the PR
+got new commits, if `iac/` changed on `main`, or (OpenTofu's own check) if
+the state changed since the plan. Nothing is applied; approve the newer
+run instead, or update the branch to plan again. Only one apply runs at a
+time; a newer run's apply queues behind one waiting for approval, so
+reject approvals for runs that have been superseded.
+
+Never apply a branch you didn't write or haven't fully reviewed. The
+workflow doesn't run for PRs from forks (they get no secrets), so to apply
+an external contributor's `iac/` change, push a reviewed copy to a branch
+in this repo and open a PR from it.
+
+### Applying by hand
+
+With the [prerequisites](#prerequisites) in place, the same flow works
+locally. Update the branch with `main` first: applying a branch that's
+behind `main` would undo any `iac/` change merged since it was cut — the
+ruleset's up-to-date requirement only applies at merge time, not when you
+apply.
+
+```bash
+cd iac
+tofu init
+tofu plan
+tofu apply
+```
+
+To roll back by hand, apply `main`:
+
+```bash
+git switch main && git pull
+cd iac && tofu apply
+```
+
+## Bootstrapping a new repository
+
+The `main` ruleset requires pull requests, so the first push has to happen
+while `ruleset_enforcement = "disabled"` in `terraform.tfvars`:
+
+```bash
+cd iac
+tofu init
+tofu apply
+git remote add origin "$(tofu output -raw repository_ssh_clone_url)"
+git push -u origin main
+```
+
+Then finish by setting `ruleset_enforcement = "active"` in
+`terraform.tfvars`, applying, and committing that change. From then on it
+goes through a PR like any other change. Don't leave it `"disabled"`: that's
+what `main` says the repository should look like, so every later apply —
+including a rollback — would keep the rulesets off.
+
+## Before adding a collaborator
+
+The configuration assumes a single maintainer: nobody else has write
+access, so nobody else can merge or create tags. Several settings rely on
+that and must be tightened *before* granting anyone write access:
+
+- [ ] **Require an approving review.** In `rulesets.tf`, set
+      `required_approving_review_count = 1` and
+      `require_code_owner_review = true` (`.github/CODEOWNERS` already
+      names the maintainer). Otherwise a collaborator can merge their own
+      PR — and since a PR runs its own copy of the workflows, they can make
+      the required check pass too.
+- [ ] **Lock down release tag creation.** The `release-tags` ruleset only
+      stops tags being moved or deleted; anyone with write access can
+      create a `<module>/vX.Y.Z` tag. Restricting creation means moving the
+      release workflow to a dedicated GitHub App token, since GitHub won't
+      accept the built-in Actions app as a bypass actor on a personal repo.
+- [ ] **Revisit the `integration` and `iac-apply` environments.**
+      `prevent_self_review = false` lets the person who triggered a run
+      approve it. With more than one reviewer, set it to `true` and add
+      them to `reviewers`.
+- [ ] **Remember `iac-plan` needs no approval.** Anyone who can push a
+      branch can run a job in it, and so use its credentials: read the
+      repository's settings, and read *and write* the `iac/` state (the
+      Azure identity is shared with apply). Keep its GitHub token
+      read-only, keep secrets out of the state, and consider a separate
+      read-only state identity for plan.
+- [ ] **Decide how you merge your own PRs** once approvals are required:
+      another maintainer's review, or a `pull_request`-mode admin bypass on
+      the `main` ruleset (which also skips required checks, so use it
+      deliberately).
+
+External contributors who open PRs from forks need none of this — they
+have no write access and can't merge. See
+[Reviewing external pull requests](../CONTRIBUTING.md#reviewing-external-pull-requests).
+
+## Enabling integration tests
+
+1. Create the Azure identity (outside this module) and grant it only the
+   roles the integration tests need.
+2. Add a federated credential to it: issuer
+   `https://token.actions.githubusercontent.com`, audience
+   `api://AzureADTokenExchange`, subject from
+   `tofu output azure_federated_credential_subject`.
+3. Set `azure_client_id`, `azure_tenant_id`, and `azure_subscription_id` in
+   `terraform.tfvars` (identifiers, not secrets) and apply.
+
+## Enabling the iac workflow
+
+The workflow needs a GitHub token for each of its two jobs — **plan**
+(`iac-plan` environment, no approval) gets a read-only one, **apply**
+(`iac-apply` environment, approval required) a read-write one — and one
+Azure identity, shared by both, for the state in Azure Storage
+(`backend.tf`). Nothing else touches Azure. Setting it up takes a few
+applies by hand, since the workflow is skipped until
+`iac_azure_client_id` is set:
+
+1. Apply `iac/` so the `iac-plan` and `iac-apply` environments exist.
+2. **Azure (state):** create an identity (app registration or
+   user-assigned managed identity) outside this module and grant it
+   *Storage Blob Data Contributor* on the state container in `backend.tf`
+   — nothing else. Don't reuse the integration test identity: the plan job
+   runs without approval, so any branch push could then use that
+   identity's test-subscription roles, which the `integration`
+   environment's approval exists to prevent. Add two federated
+   credentials to it, both with issuer
+   `https://token.actions.githubusercontent.com` and audience
+   `api://AzureADTokenExchange`, and the `plan` and `apply` subjects from
+   `tofu output iac_federated_credential_subjects`.
+3. **GitHub:** create two fine-grained personal access tokens (Settings →
+   Developer settings) limited to this repository. Plan token: read-only
+   *Actions*, *Administration*, *Contents*, *Environments*, and
+   *Variables*. Apply token: the same, but read and write for
+   *Administration*, *Environments*, and *Variables*. If a plan or apply
+   fails with a 403, the error names the API endpoint, and GitHub's REST
+   API docs list the permission it needs. Store each token in its
+   environment — never in `terraform.tfvars` or the state:
+
+   ```bash
+   gh secret set IAC_GITHUB_TOKEN --env iac-plan
+   gh secret set IAC_GITHUB_TOKEN --env iac-apply
+   ```
+
+   Fine-grained tokens expire; note the date and rotate them the same way.
+4. Set `iac_azure_client_id` and `iac_azure_tenant_id` in
+   `terraform.tfvars` (identifiers, not secrets) and apply. That creates
+   the `IAC_AZURE_*` repository variables the workflow checks for. From
+   the next PR that touches `iac/`, the workflow plans and applies.
+
+The plan artifact holds the plan file, which embeds the configuration and
+a copy of the state. On a public repository any signed-in user can
+download artifacts, so the state must never hold a secret — today it
+holds only settings and identifiers that are public anyway. Artifacts
+expire after 7 days; approving an apply after that fails, and re-running
+the workflow plans again.
+
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0 |
+| <a name="requirement_github"></a> [github](#requirement\_github) | ~> 6.13 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| <a name="provider_github"></a> [github](#provider\_github) | 6.13.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| [github_actions_repository_permissions.this](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/actions_repository_permissions) | resource |
+| [github_actions_variable.azure](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/actions_variable) | resource |
+| [github_repository.this](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository) | resource |
+| [github_repository_dependabot_security_updates.this](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_dependabot_security_updates) | resource |
+| [github_repository_environment.iac_apply](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_environment) | resource |
+| [github_repository_environment.iac_plan](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_environment) | resource |
+| [github_repository_environment.integration](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_environment) | resource |
+| [github_repository_ruleset.main](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_ruleset) | resource |
+| [github_repository_ruleset.release_tags](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_ruleset) | resource |
+| [github_repository_vulnerability_alerts.this](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/repository_vulnerability_alerts) | resource |
+| [github_workflow_repository_permissions.this](https://registry.terraform.io/providers/integrations/github/latest/docs/resources/workflow_repository_permissions) | resource |
+| [terraform_data.fork_pr_approval](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [github_user.owner](https://registry.terraform.io/providers/integrations/github/latest/docs/data-sources/user) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_azure_client_id"></a> [azure\_client\_id](#input\_azure\_client\_id) | Client ID of the Entra ID app registration / managed identity integration tests authenticate as. null disables integration tests. | `string` | n/a | yes |
+| <a name="input_azure_subscription_id"></a> [azure\_subscription\_id](#input\_azure\_subscription\_id) | Azure subscription ID integration tests deploy into. Required when azure\_client\_id is set. | `string` | n/a | yes |
+| <a name="input_azure_tenant_id"></a> [azure\_tenant\_id](#input\_azure\_tenant\_id) | Entra ID tenant ID for integration tests. Required when azure\_client\_id is set. | `string` | n/a | yes |
+| <a name="input_fork_pr_approval_policy"></a> [fork\_pr\_approval\_policy](#input\_fork\_pr\_approval\_policy) | Which fork PR authors need a maintainer's approval before their workflows run: all\_external\_contributors, first\_time\_contributors, or first\_time\_contributors\_new\_to\_github. | `string` | `"all_external_contributors"` | no |
+| <a name="input_github_owner"></a> [github\_owner](#input\_github\_owner) | GitHub user that owns the repository. | `string` | n/a | yes |
+| <a name="input_iac_azure_client_id"></a> [iac\_azure\_client\_id](#input\_iac\_azure\_client\_id) | Client ID of the Entra ID app registration / managed identity the iac workflow uses to access this root module's state. null disables the iac workflow. | `string` | n/a | yes |
+| <a name="input_iac_azure_tenant_id"></a> [iac\_azure\_tenant\_id](#input\_iac\_azure\_tenant\_id) | Entra ID tenant ID of the iac workflow identity. Required when iac\_azure\_client\_id is set. | `string` | n/a | yes |
+| <a name="input_repository_name"></a> [repository\_name](#input\_repository\_name) | Name of the repository to create and manage. | `string` | n/a | yes |
+| <a name="input_ruleset_enforcement"></a> [ruleset\_enforcement](#input\_ruleset\_enforcement) | Enforcement for the repository rulesets: "active" or "disabled". Only set<br/>"disabled" temporarily -- e.g. to push the initial history to a brand-new<br/>repository before the main ruleset starts requiring pull requests (see<br/>README.md). | `string` | n/a | yes |
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| <a name="output_azure_federated_credential_subject"></a> [azure\_federated\_credential\_subject](#output\_azure\_federated\_credential\_subject) | Subject to set on the Azure federated credential for integration tests (issuer https://token.actions.githubusercontent.com, audience api://AzureADTokenExchange). |
+| <a name="output_iac_federated_credential_subjects"></a> [iac\_federated\_credential\_subjects](#output\_iac\_federated\_credential\_subjects) | Subjects of the two federated credentials to add to the iac workflow's Azure identity, one per job's environment (same issuer and audience as azure\_federated\_credential\_subject). |
+| <a name="output_repository_ssh_clone_url"></a> [repository\_ssh\_clone\_url](#output\_repository\_ssh\_clone\_url) | SSH clone URL, for `git remote add origin` when bootstrapping. |
+| <a name="output_repository_url"></a> [repository\_url](#output\_repository\_url) | URL of the repository. |
+<!-- END_TF_DOCS -->

@@ -1,0 +1,4 @@
+[submodule "cookiecutter"]
+	path = cookiecutter
+	url = https://github.com/JoshSLawrence/cookiecutter.git
+	branch = main

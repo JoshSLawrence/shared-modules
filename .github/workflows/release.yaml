@@ -1,0 +1,55 @@
+# Auto-release workflow
+# Triggers on changes to VERSION files in modules/ and creates git tags plus
+# GitHub Releases.
+#
+# Workflow:
+# 1. Developer updates modules/<module>/VERSION in their PR (e.g., v1.2.0)
+# 2. PR is reviewed and merged to main
+# 3. This workflow creates tag <module>/v1.2.0 on the merge commit and a
+#    GitHub Release with that version's CHANGELOG.md entry as notes
+#
+# Each run reconciles every module's VERSION against existing tags, so it's
+# safe to re-run, and a cancelled run is caught up by the next one. Run it
+# manually (workflow_dispatch) to recover from a failed or skipped release.
+
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - modules/*/VERSION
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never cancel an in-flight release; queue the next one behind it instead.
+# GitHub still drops older *pending* runs when a newer one queues, which is
+# harmless: the newer run reconciles every module.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release Modules
+    # workflow_dispatch can target any branch; only ever release from main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # push tags, create releases
+    steps:
+      # Full history + tags: the script finds the commit that last changed
+      # each VERSION file and skips tags that already exist. Credentials are
+      # persisted so the script can push tags with the workflow's GITHUB_TOKEN.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Create module tags and releases from VERSION files
+        run: .github/scripts/create-release-tags.sh
+        env:
+          GH_TOKEN: ${{ github.token }}

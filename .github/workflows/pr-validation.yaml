@@ -1,0 +1,276 @@
+# PR validation workflow
+# Validates module changes on pull requests to main.
+#
+# Setup: require the "Validation Result" check in a branch ruleset/protection
+# rule for main (Settings -> Rules -> Rulesets). Require that job rather than
+# the per-module jobs: their names depend on which modules changed, and
+# they're skipped entirely when no module changed.
+
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# No workflow-level concurrency: cancelling a whole run on a new push would
+# also kill an in-flight integration test mid-apply, before `tofu test` can
+# destroy what it created, leaking real infrastructure. Jobs that are safe to
+# cancel set their own cancel-in-progress group instead; the integration job
+# queues behind any run already in progress.
+#
+# Job layout (deliberate):
+# - detect: cheap, credential-free change detection and VERSION checks.
+# - repo: lints scripts/workflows outside modules/ and checks that the
+#   cookiecutter template (cookiecutter/ submodule) renders a module that
+#   passes validation. Always runs, so a PR touching only .github/ or the
+#   submodule pin is still checked.
+# - validate: one leg per module with any changed file -- static checks and
+#   unit tests. No cloud credentials.
+# - integration: one leg per changed module that has integration tests. The
+#   only job that can request an Azure OIDC token (id-token: write), and it
+#   only starts once every validate leg has passed, so a PR failing lint or
+#   a security scan never provisions real infrastructure.
+# - result: the single roll-up check to require in branch protection.
+jobs:
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: pr-validation-${{ github.event.pull_request.number }}-detect
+      cancel-in-progress: true
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      has-changes: ${{ steps.detect.outputs.has-changes }}
+      integration-matrix: ${{ steps.detect.outputs.integration-matrix }}
+      has-integration-tests: ${{ steps.detect.outputs.has-integration-tests }}
+    env:
+      BASE_REF: origin/${{ github.base_ref }}
+    steps:
+      # Full history + tags: the scripts diff against the base branch and check
+      # whether a module's release tag already exists.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect changed modules
+        id: detect
+        run: .github/scripts/detect-changed-modules.sh
+
+      # Validation runs for any module change, but only .tf and scripts/
+      # changes require a VERSION bump -- the script computes that narrower
+      # list itself.
+      - name: Check VERSION bumped for .tf / scripts/ changes
+        run: .github/scripts/check-version-bump.sh
+
+      - name: Validate VERSION format, uniqueness, and CHANGELOG entry
+        run: .github/scripts/validate-version-format.sh
+
+  repo:
+    name: Repo Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: pr-validation-${{ github.event.pull_request.number }}-repo
+      cancel-in-progress: true
+    env:
+      # The checks read nested mise.toml files (iac/, the rendered template);
+      # they're part of this checkout, so trust them.
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      # Submodules: the template check renders the shared-module template
+      # from the cookiecutter/ submodule (a public repo, so no token needed).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      # Installs the tool versions pinned in the repo-root mise.toml.
+      # Dependabot doesn't update `version`; bump it by hand now and then.
+      - name: Set up mise
+        id: setup
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.12
+
+      - name: Lint scripts and workflows
+        run: .github/scripts/repo-lint.sh
+
+      - name: Render and check module template
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/template-check.sh
+        env:
+          # Authenticated tflint plugin downloads avoid GitHub API rate limits
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Validates the root module that configures this repository on GitHub.
+      # Planning and applying it is iac.yaml's job -- see iac/README.md.
+      - name: Check iac/
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/iac-check.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  validate:
+    name: Validate (${{ matrix.module }})
+    needs: detect
+    if: needs.detect.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: pr-validation-${{ github.event.pull_request.number }}-validate-${{ matrix.module }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        module: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    env:
+      WORKING_DIR: modules/${{ matrix.module }}
+      # Stop mise at modules/ so it doesn't merge in the repo-root mise.toml:
+      # only the module's own pins are installed and used, and a tool missing
+      # from them fails its check instead of silently using the root version.
+      MISE_CEILING_PATHS: ${{ github.workspace }}/modules
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Installs exactly the tool versions pinned in the module's own mise.toml
+      - name: Set up mise
+        id: setup
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.12
+          working_directory: ${{ env.WORKING_DIR }}
+
+      # Each check runs even if an earlier one failed (as long as setup
+      # succeeded), so one run reports every problem instead of just the first.
+      - name: Format check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-fmt-check.sh
+
+      - name: OpenTofu validate
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-validate-check.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # TFLint runs recursively. To suppress warnings in test fixtures, add an
+      # annotation to the file: # tflint-ignore-file: <rule_name>
+      - name: TFLint check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-lint-check.sh
+        env:
+          TFLINT_RECURSIVE: "true"
+          # Authenticated plugin downloads avoid GitHub API rate limits
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Severity threshold and exit code come from the module's trivy.yaml,
+      # so CI and the pre-commit hook agree.
+      - name: Trivy security scan
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-security-check.sh
+
+      - name: Terraform docs check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-docs-check.sh
+
+      - name: OpenTofu unit tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-test-check.sh
+        env:
+          TOFU_TEST_SCOPE: unit
+          GITHUB_TOKEN: ${{ github.token }}
+
+  integration:
+    name: Integration (${{ matrix.module }})
+    needs: [detect, validate]
+    # Integration tests (tests/9[0-9]_*) provision real infrastructure, so they
+    # only run when every validate leg passed, Azure OIDC is configured (repo
+    # variable AZURE_CLIENT_ID), and the PR comes from this repo -- fork PRs
+    # can't get an OIDC token. Each run then waits for approval in the
+    # `integration` environment (iac/environments.tf), which is also the only
+    # OIDC subject the Azure federated credential trusts.
+    # See CONTRIBUTING.md#integration-tests.
+    if: >-
+      needs.detect.outputs.has-integration-tests == 'true' &&
+      vars.AZURE_CLIENT_ID != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    environment: integration
+    runs-on: ubuntu-latest
+    # Generous: hitting the timeout kills tofu test mid-apply, like a cancel.
+    # The job only starts on a runner (and its timeout only starts) once
+    # approved; unapproved runs expire after 30 days.
+    timeout-minutes: 90
+    # Never cancel an in-flight run (see the note at the top). A newer push
+    # queues behind it; only a still-pending older run is replaced.
+    concurrency:
+      group: pr-validation-${{ github.event.pull_request.number }}-integration-${{ matrix.module }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write # Azure OIDC
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        module: ${{ fromJSON(needs.detect.outputs.integration-matrix) }}
+    env:
+      WORKING_DIR: modules/${{ matrix.module }}
+      MISE_CEILING_PATHS: ${{ github.workspace }}/modules
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.12
+          working_directory: ${{ env.WORKING_DIR }}
+
+      # No `az login` step: the azurerm/azuread providers fetch GitHub OIDC
+      # tokens themselves (ARM_USE_OIDC below). If a module's scripts/ ever
+      # shell out to the az CLI, add an azure/login step before this one.
+      - name: OpenTofu integration tests
+        run: .github/scripts/tofu-test-check.sh
+        env:
+          TOFU_TEST_SCOPE: integration
+          GITHUB_TOKEN: ${{ github.token }}
+          # azurerm/azuread authenticate via GitHub OIDC directly, requesting
+          # fresh tokens as needed so long-running tests don't outlive them.
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+  # Single, stable check to require in branch protection -- see header comment.
+  result:
+    name: Validation Result
+    needs: [detect, repo, validate, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Every job must succeed or be skipped. detect and repo have no `if`, so
+      # they're only ever skipped if the run itself is broken; validate and
+      # integration are skipped when there's nothing for them to do.
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          failed=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | .key')
+          if [ "$(echo "$NEEDS" | jq -r '.detect.outputs["has-integration-tests"] == "true" and .validate.result == "success" and .integration.result == "skipped"')" = "true" ]; then
+            echo "::warning::Integration tests exist for a changed module but didn't run (Azure OIDC isn't configured, or this PR is from a fork). See CONTRIBUTING.md#integration-tests."
+          fi
+          for job in $failed; do
+            echo "::error::Job '${job}' did not succeed. See its log."
+          done
+          [ -z "$failed" ]

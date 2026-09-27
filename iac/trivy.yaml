@@ -1,0 +1,18 @@
+misconfiguration:
+  scanners:
+    - terraform
+    - terraformplan-json
+    - terraformplan-snapshot
+
+  terraform:
+    exclude-downloaded-modules: false
+
+# Single source of truth for the failure threshold: both the pre-commit hook
+# and CI read this file, so local runs and PR validation fail on the same
+# findings.
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+exit-code: 1

@@ -1,0 +1,5 @@
+# Every change requests the maintainer's review. With a single maintainer this
+# is informational (the main ruleset requires 0 approvals); it becomes
+# enforceable once require_code_owner_review is turned on -- see "Before
+# adding a collaborator" in iac/README.md.
+* @JoshSLawrence

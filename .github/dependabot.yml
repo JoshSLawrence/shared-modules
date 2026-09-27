@@ -1,0 +1,27 @@
+# Keeps the SHA-pinned actions in .github/workflows/ and the cookiecutter/
+# submodule up to date
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Wait before proposing a freshly published release: compromised action
+    # releases are usually caught and pulled within days.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Bumps the pinned module template; PR validation's template check renders
+  # the new commit and runs the module checks against it before merge.
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore

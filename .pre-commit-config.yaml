@@ -1,0 +1,55 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: trailing-whitespace
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.99.5
+    hooks:
+      # The cookiecutter/ submodule (unrendered Jinja in .tf files) needs no
+      # exclude: pre-commit never sees files inside submodules.
+      - id: terraform_fmt
+        args:
+          - --hook-config=--tf-path=tofu
+      - id: terraform_docs
+        # Exclude examples/ from doc generation (examples don't need generated docs)
+        exclude: /examples/
+        args:
+          - --hook-config=--tf-path=tofu
+      - id: terraform_validate
+        # Exclude examples/ - they use remote git sources that can't be
+        # resolved until published (requires tofu init with valid ref)
+        exclude: /examples/
+        args:
+          - --hook-config=--tf-path=tofu
+      - id: terraform_tflint
+        args:
+          - --hook-config=--tf-path=tofu
+      - id: terraform_trivy
+        args:
+          - --hook-config=--tf-path=tofu
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: ["-x"]
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      # -system: uses the actionlint pinned in the root mise.toml instead of
+      # building it from source with Go
+      - id: actionlint-system
+  - repo: local
+    hooks:
+      - id: tofu-test
+        name: OpenTofu tests (skip integration tests)
+        entry: mise-tasks/_tofu-test.sh
+        language: script
+        # .tftest.hcl too, so editing only a test file still runs the tests
+        files: ^modules/[^/]+/.*\.(tf|tftest\.hcl)$
+        exclude: /examples/
+        pass_filenames: true
+        require_serial: true
+        verbose: true

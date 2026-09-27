@@ -1,0 +1,7 @@
+# Root modules aren't bound by the shared-module OpenTofu floor, so iac/ is
+# applied with a current OpenTofu. CI checks iac/ with only these pins.
+[tools]
+opentofu = "1.12.6"
+terraform-docs = "0.24.0"
+trivy = "0.72.0"
+tflint = "0.64.0"
