@@ -55,10 +55,11 @@ cleanup() {
 trap cleanup EXIT
 
 # Configure git user for CI environments before cookiecutter runs
-# (cookiecutter's post-generation hooks need it)
+# (cookiecutter's post-generation hooks create a git repo and need it)
+# Use --global so the config applies to the new git repo created by cookiecutter
 if is_github_actions; then
-  git config user.email "github-actions[bot]@users.noreply.github.com"
-  git config user.name "github-actions[bot]"
+  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+  git config --global user.name "github-actions[bot]"
 fi
 
 log_step "Rendering $TEMPLATE_DIR"
