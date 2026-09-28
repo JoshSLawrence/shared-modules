@@ -27,9 +27,9 @@ require_mise_tool cookiecutter
 require_mise_tool opentofu
 
 TEMPLATE_DIR="${TEMPLATE_DIR:-cookiecutter/templates/opentofu}"
-MODULE_NAME="CI Template Check"
-MODULE_SLUG="ci-template-check"
-OUT_DIR="modules/${MODULE_SLUG}"
+PROJECT_NAME="CI Template Check"
+PROJECT_SLUG="ci-template-check"
+OUT_DIR="modules/${PROJECT_SLUG}"
 OPENTOFU_VERSION="$(mise current opentofu)"
 
 if [ ! -f "$TEMPLATE_DIR/cookiecutter.json" ]; then
@@ -55,15 +55,11 @@ cleanup() {
 trap cleanup EXIT
 
 log_step "Rendering $TEMPLATE_DIR"
-log_config TEMPLATE_DIR MODULE_NAME OUT_DIR OPENTOFU_VERSION
+log_config TEMPLATE_DIR PROJECT_NAME OUT_DIR OPENTOFU_VERSION
 
 if ! mise exec -- cookiecutter --no-input "$TEMPLATE_DIR" -o modules \
-  module_name="$MODULE_NAME" \
-  opentofu_version="$OPENTOFU_VERSION" \
-  use_azurerm=true \
-  use_azapi=true \
-  use_azuread=true \
-  use_random=true; then
+  project_name="$PROJECT_NAME" \
+  opentofu_version="$OPENTOFU_VERSION"; then
   log_error "cookiecutter failed to render $TEMPLATE_DIR. Run 'mise run new-module' locally to reproduce."
   exit 1
 fi
