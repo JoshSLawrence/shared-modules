@@ -54,6 +54,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Configure git user for CI environments before cookiecutter runs
+# (cookiecutter's post-generation hooks need it)
+if is_github_actions; then
+  git config user.email "github-actions[bot]@users.noreply.github.com"
+  git config user.name "github-actions[bot]"
+fi
+
 log_step "Rendering $TEMPLATE_DIR"
 log_config TEMPLATE_DIR PROJECT_NAME OUT_DIR OPENTOFU_VERSION
 
@@ -62,12 +69,6 @@ if ! mise exec -- cookiecutter --no-input "$TEMPLATE_DIR" -o modules \
   opentofu_version="$OPENTOFU_VERSION"; then
   log_error "cookiecutter failed to render $TEMPLATE_DIR. Run 'mise run new-module' locally to reproduce."
   exit 1
-fi
-
-# Configure git user for CI environments
-if is_github_actions; then
-  git config user.email "github-actions[bot]@users.noreply.github.com"
-  git config user.name "github-actions[bot]"
 fi
 
 git add -A "$OUT_DIR"
