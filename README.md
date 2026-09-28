@@ -1,5 +1,10 @@
 # Shared Modules
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![OpenTofu](https://img.shields.io/badge/OpenTofu-%3E%3D1.9.0-844fba?logo=opentofu)](https://opentofu.org)
+[![PR Validation](https://github.com/JoshSLawrence/shared-modules/actions/workflows/pr-validation.yaml/badge.svg)](https://github.com/JoshSLawrence/shared-modules/actions/workflows/pr-validation.yaml)
+[![IaC](https://github.com/JoshSLawrence/shared-modules/actions/workflows/iac.yaml/badge.svg)](https://github.com/JoshSLawrence/shared-modules/actions/workflows/iac.yaml)
+
 This repository is a collection of version-controlled **shared modules** for
 [OpenTofu](https://opentofu.org). It exists so that common infrastructure
 patterns can be written once, reviewed once, and reused across many
