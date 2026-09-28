@@ -247,7 +247,7 @@ ensure_mise() {
 require_mise_tool() {
   local tool="$1"
   if [ -z "$(mise current "$tool" 2> /dev/null)" ]; then
-    log_error "$tool is not pinned in ${WORKING_DIR:-.}/mise.toml. Add it (the standard pins are in cookiecutter/templates/opentofu/cookiecutter.json) so this check runs with a known version."
+    log_error "$tool is not pinned in ${WORKING_DIR:-.}/mise.toml. Add it (the standard pins are in cookiecutter/templates/shared-module/cookiecutter.json) so this check runs with a known version."
     exit 1
   fi
 }

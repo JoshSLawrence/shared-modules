@@ -23,7 +23,7 @@ log_info "=== Running Trivy Security Scan ==="
 require_mise_tool trivy
 
 if [ ! -f trivy.yaml ]; then
-  log_error "No trivy.yaml in ${WORKING_DIR}. Copy it from cookiecutter/templates/opentofu/ so the scan uses the repo's standard severity threshold."
+  log_error "No trivy.yaml in ${WORKING_DIR}. Copy it from cookiecutter/templates/shared-module/ so the scan uses the repo's standard severity threshold."
   exit 1
 fi
 
