@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Renders the shared-module cookiecutter template (from the cookiecutter/
+# Renders the OpenTofu cookiecutter template (from the cookiecutter/
 # submodule) into a throwaway module and runs the same checks PR validation
 # runs on real modules, so a submodule bump can't scaffold modules that fail
 # CI. Used by the PR validation workflow; safe to run locally.
@@ -11,7 +11,7 @@
 # does.
 #
 # Environment variables:
-#   TEMPLATE_DIR - template to render (default: cookiecutter/templates/shared-module).
+#   TEMPLATE_DIR - template to render (default: cookiecutter/templates/opentofu).
 #                  Point it at a local clone to test template changes before
 #                  bumping the submodule.
 #
@@ -26,7 +26,7 @@ ensure_mise
 require_mise_tool cookiecutter
 require_mise_tool opentofu
 
-TEMPLATE_DIR="${TEMPLATE_DIR:-cookiecutter/templates/shared-module}"
+TEMPLATE_DIR="${TEMPLATE_DIR:-cookiecutter/templates/opentofu}"
 MODULE_NAME="CI Template Check"
 MODULE_SLUG="ci-template-check"
 OUT_DIR="modules/${MODULE_SLUG}"
