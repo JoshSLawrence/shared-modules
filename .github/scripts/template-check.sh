@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Renders the shared-module cookiecutter template (from the cookiecutter/
+# Renders the OpenTofu cookiecutter template (from the cookiecutter/
 # submodule) into a throwaway module and runs the same checks PR validation
 # runs on real modules, so a submodule bump can't scaffold modules that fail
 # CI. Used by the PR validation workflow; safe to run locally.
@@ -11,7 +11,7 @@
 # does.
 #
 # Environment variables:
-#   TEMPLATE_DIR - template to render (default: cookiecutter/templates/shared-module).
+#   TEMPLATE_DIR - template to render (default: cookiecutter/templates/opentofu).
 #                  Point it at a local clone to test template changes before
 #                  bumping the submodule.
 #
@@ -54,6 +54,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Configure git user for CI environments before cookiecutter runs
+# (cookiecutter's post-generation hooks create a git repo and need it)
+# Use --global so the config applies to the new git repo created by cookiecutter
+if is_github_actions; then
+  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+  git config --global user.name "github-actions[bot]"
+fi
+
 log_step "Rendering $TEMPLATE_DIR"
 log_config TEMPLATE_DIR MODULE_NAME OUT_DIR OPENTOFU_VERSION
 
@@ -67,6 +75,10 @@ if ! mise exec -- cookiecutter --no-input "$TEMPLATE_DIR" -o modules \
   log_error "cookiecutter failed to render $TEMPLATE_DIR. Run 'mise run new-module' locally to reproduce."
   exit 1
 fi
+
+# Remove the .git directory created by cookiecutter's post-generation hooks
+# so we can add the rendered module to the parent repo's index for validation
+rm -rf "$OUT_DIR/.git"
 
 git add -A "$OUT_DIR"
 
