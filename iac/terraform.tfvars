@@ -5,4 +5,4 @@ github_owner          = "JoshSLawrence"
 iac_azure_client_id   = null
 iac_azure_tenant_id   = null
 repository_name       = "shared-modules"
-ruleset_enforcement   = "disabled"
+ruleset_enforcement   = "active"
