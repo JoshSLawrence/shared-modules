@@ -68,6 +68,12 @@ if ! mise exec -- cookiecutter --no-input "$TEMPLATE_DIR" -o modules \
   exit 1
 fi
 
+# Configure git user for CI environments
+if is_github_actions; then
+  git config user.email "github-actions[bot]@users.noreply.github.com"
+  git config user.name "github-actions[bot]"
+fi
+
 git add -A "$OUT_DIR"
 
 # Same isolation as the validate job: only the rendered module's mise.toml
