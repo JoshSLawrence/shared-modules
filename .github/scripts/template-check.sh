@@ -72,6 +72,10 @@ if ! mise exec -- cookiecutter --no-input "$TEMPLATE_DIR" -o modules \
   exit 1
 fi
 
+# Remove the .git directory created by cookiecutter's post-generation hooks
+# so we can add the rendered module to the parent repo's index for validation
+rm -rf "$OUT_DIR/.git"
+
 git add -A "$OUT_DIR"
 
 # Same isolation as the validate job: only the rendered module's mise.toml
