@@ -41,7 +41,7 @@ esac
 
 if ! compgen -G "*.tftest.hcl" > /dev/null 2>&1 && \
    ! compgen -G "tests/*.tftest.hcl" > /dev/null 2>&1; then
-  log_warn "No test files found in ${WORKING_DIR} (*.tftest.hcl or tests/*.tftest.hcl), skipping. Shared modules are expected to test their validation logic -- see AGENTS.md#testing."
+  log_warn "No test files found in ${WORKING_DIR} (*.tftest.hcl or tests/*.tftest.hcl), skipping. Shared modules are expected to test their validation logic -- see CLAUDE.md."
   exit 0
 fi
 

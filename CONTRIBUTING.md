@@ -95,10 +95,40 @@ git add cookiecutter
 
 1. For a new module, scaffold it with cookiecutter (see [Scaffolding a new module](#scaffolding-a-new-module-with-cookiecutter) above) rather than copying an existing module by hand, so it starts with the standard layout. For a change, work within the existing module's directory.
 1. Document the module by editing its `.header.md` (and `.terraform-docs.yaml` config, if needed) and regenerating `README.md` with `terraform-docs` (run `mise exec -- terraform-docs .` from within the module, or let the repo's `terraform_docs` pre-commit hook do it) — don't hand-edit a generated `README.md` directly, since your changes will be overwritten.
-1. Add or update an `examples/` directory with a minimal root configuration that exercises the module end-to-end. Update the example's `source` ref to match the VERSION being released (e.g. `?ref=my-module/v1.2.0`).
+1. Add or update an `examples/` directory with a minimal root configuration that exercises the module end-to-end. Call the module itself with `source = "../.."` and any other shared module by pinned release tag, and add a test that plans each example (e.g. `tests/03_examples.tftest.hcl`).
 1. If the module needs internal abstractions, put them in a child module under that module's `modules/` directory — don't reuse another shared module's child module directly. If logic needs to be reused across shared modules, it should be promoted to its own shared module instead.
 1. Put any supporting scripts (e.g. ones invoked via `local-exec`) in that module's `scripts/` directory rather than inlining them in `.tf` files.
-1. Run the repo's `pre-commit` hooks against the module and its examples before opening a PR (`pre-commit run -a`, or let them run on commit) — this covers `tofu fmt`/`tofu validate`, `tflint` (per the module's `.tflint.hcl`), `trivy` (per its `trivy.yaml`), and `terraform-docs`. See [Validating changes](./AGENTS.md#validating-changes) in AGENTS.md for what to do if a hook fails.
+1. To build on another shared module from this repo, call a released version of it — see [Calling another shared module](#calling-another-shared-module).
+1. Run the repo's `pre-commit` hooks against the module and its examples before opening a PR (`pre-commit run -a`, or let them run on commit) — this covers `tofu fmt`/`tofu validate`, `tflint` (per the module's `.tflint.hcl`), `trivy` (per its `trivy.yaml`), and `terraform-docs`. See [Validating changes](./CLAUDE.md#validation) in CLAUDE.md for what to do if a hook fails.
+
+### Calling another shared module
+
+A shared module (or an example) can call another shared module from this
+repo, e.g. `synapse-workspace` creates its default storage with
+`storage-account`. Always pin the call to a released, module-scoped tag,
+exactly as an outside consumer would:
+
+```hcl
+module "storage_account" {
+  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.0.1"
+}
+```
+
+Never use a relative path (`../storage-account`) or a child module of
+another shared module. Pinning means a change to the called module can't
+affect the caller until the caller deliberately bumps its `ref`, so each
+module is validated and released on its own:
+
+- The called module's version must be released before a PR can use it.
+  Ship the dependency in its own PR first, wait for the release workflow
+  to tag it, then open the PR that consumes it. Until the tag exists,
+  `tofu init` (and so validation) fails for the consumer.
+- Upgrading a dependency is a change to the caller: bump the `ref` and the
+  caller's own `VERSION`, and note it in its `CHANGELOG.md`.
+
+The one exception is an example calling *its own* module, which uses
+`source = "../.."` so the example (and the test that plans it) exercises
+the code in the PR rather than the last release.
 
 ## Versioning and Releases
 
@@ -302,4 +332,4 @@ what CI checks, so review accordingly:
 - The [PR template](./.github/pull_request_template.md) is auto-populated when you create a PR — complete its checklist covering VERSION, CHANGELOG, examples, and validation.
 - Keep PRs scoped to a single module where possible.
 - Describe what changed and, if applicable, whether it's a breaking change requiring a major version bump.
-- Ensure the relevant `pre-commit` hooks pass, and that examples plan cleanly with `tofu`, before requesting review. Never suppress a `tflint`/`trivy` finding to force a hook to pass — see [Validating changes](./AGENTS.md#validating-changes) in AGENTS.md.
+- Ensure the relevant `pre-commit` hooks pass, and that examples plan cleanly with `tofu`, before requesting review. Never suppress a `tflint`/`trivy` finding to force a hook to pass — see [Validating changes](./CLAUDE.md#validation) in CLAUDE.md.
