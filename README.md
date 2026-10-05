@@ -32,7 +32,7 @@ root module in another (see the note below).
 
 Note: when you are developing a shared module in this repo, treat that module as a root module for the purposes of local development and testing (write examples, run `tofu plan`, etc., directly against it). A shared module can also have its own child modules under its own `modules/` directory.
 
-A shared module's child modules are private to it: never reach into another shared module's `modules/` directory to reuse a child module directly. If the same logic is needed by two or more shared modules, promote it to its own shared module instead.
+A shared module's child modules are private to it: never reach into another shared module's `modules/` directory to reuse a child module directly. If the same logic is needed by two or more shared modules, promote it to its own shared module instead, and call a released version of it (see [Calling another shared module](./CONTRIBUTING.md#calling-another-shared-module)).
 
 ## Repository Layout
 
@@ -49,7 +49,8 @@ shared-modules/
 ├── .gitignore
 ├── .gitmodules
 ├── .pre-commit-config.yaml
-├── AGENTS.md
+├── AGENTS.md                # symlink to CLAUDE.md
+├── CLAUDE.md                # rules for agents (and humans) working in this repo
 ├── CONTRIBUTING.md
 ├── cookiecutter/            # git submodule: JoshSLawrence/cookiecutter, home of the shared-module template
 ├── iac/                     # root module that configures this repo on GitHub (rulesets, environments, ...)
