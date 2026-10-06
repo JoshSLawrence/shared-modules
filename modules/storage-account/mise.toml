@@ -1,0 +1,5 @@
+[tools]
+opentofu = "1.9.0"
+terraform-docs = "0.24.0"
+tflint = "0.64.0"
+trivy = "0.74.0"
