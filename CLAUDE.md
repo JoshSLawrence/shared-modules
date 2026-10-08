@@ -110,6 +110,12 @@ shared-modules/
 
 ## Workflows
 
+- CI (`ci.yaml`) runs on push to `main` only and backs the README badge
+  (`?branch=main&event=push`), so the badge reflects `main`'s health and
+  never a PR. It runs the fast checks (fmt, validate, tflint, trivy, docs,
+  unit tests) for *every* module plus the repo checks; never integration
+  tests, VERSION checks, or PR comments. Don't add `pull_request` triggers
+  to it.
 - PR validation runs checks + unit tests per changed module (matrix).
   Integration tests run separately after all checks pass (if Azure OIDC
   configured).

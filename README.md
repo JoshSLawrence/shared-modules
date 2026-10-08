@@ -2,8 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![OpenTofu](https://img.shields.io/badge/OpenTofu-%3E%3D1.9.0-844fba?logo=opentofu)](https://opentofu.org)
-[![PR Validation](https://github.com/JoshSLawrence/shared-modules/actions/workflows/pr-validation.yaml/badge.svg)](https://github.com/JoshSLawrence/shared-modules/actions/workflows/pr-validation.yaml)
-[![IaC](https://github.com/JoshSLawrence/shared-modules/actions/workflows/iac.yaml/badge.svg)](https://github.com/JoshSLawrence/shared-modules/actions/workflows/iac.yaml)
+[![CI](https://github.com/JoshSLawrence/shared-modules/actions/workflows/ci.yaml/badge.svg?branch=main&event=push)](https://github.com/JoshSLawrence/shared-modules/actions/workflows/ci.yaml?query=branch%3Amain+event%3Apush)
 
 This repository is a collection of version-controlled **shared modules** for
 [OpenTofu](https://opentofu.org). It exists so that common infrastructure
@@ -45,7 +44,7 @@ shared-modules/
 │   ├── dependabot.yml       # keeps the SHA-pinned workflow actions and the cookiecutter submodule up to date
 │   ├── pull_request_template.md
 │   ├── scripts/             # shell scripts called by workflows (common.sh, etc.)
-│   └── workflows/           # CI/CD workflows (PR validation, release, iac)
+│   └── workflows/           # CI/CD workflows (CI, PR validation, release, iac)
 ├── .gitignore
 ├── .gitmodules
 ├── .pre-commit-config.yaml
