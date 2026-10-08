@@ -14,7 +14,7 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 Initial release:
 
 - Azure SQL logical server with Entra ID authentication only (no SQL logins), TLS 1.2 minimum and public network access disabled by default
-- Databases (`databases`) with configurable SKU, size, backup storage redundancy, collation and zone redundancy
+- Databases (`databases`) with configurable SKU, size, backup storage redundancy, collation and zone redundancy, and serverless auto-pause delay and minimum capacity
 - Private endpoints with optional static IPs and private DNS zone groups
 - `private_endpoints_manage_dns_zone_group` to leave private DNS registration to Azure Policy instead of passing `private_dns_zone_ids`
 - `private_dns_records` output listing the zone, host name, record type and IP of every DNS record registered for the private endpoints

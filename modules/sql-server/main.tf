@@ -38,6 +38,9 @@ resource "azurerm_mssql_database" "this" {
   collation            = each.value.collation
   zone_redundant       = each.value.zone_redundant
   tags                 = var.tags
+
+  auto_pause_delay_in_minutes = each.value.auto_pause_delay_in_minutes
+  min_capacity                = each.value.min_capacity
 }
 
 resource "azurerm_management_lock" "this" {

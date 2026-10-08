@@ -82,6 +82,9 @@ variable "databases" {
     storage_account_type = optional(string, "Geo")
     collation            = optional(string, "SQL_Latin1_General_CP1_CI_AS")
     zone_redundant       = optional(bool, false)
+    # Serverless only (GP_S_* / HS_S_* SKUs)
+    auto_pause_delay_in_minutes = optional(number)
+    min_capacity                = optional(number)
   }))
   description = <<-EOT
     Databases to create on the server, keyed by an arbitrary static name.
@@ -94,6 +97,11 @@ variable "databases" {
       `Local` or `Zone`.
     - `collation` - database collation.
     - `zone_redundant` - spread replicas across availability zones.
+    - `auto_pause_delay_in_minutes` - serverless General Purpose (`GP_S_*`)
+      only: pause after this many idle minutes (15-10080), or `-1` to never
+      pause. `null` keeps Azure's default.
+    - `min_capacity` - serverless (`GP_S_*` or `HS_S_*`) only: minimum
+      vCores while running (e.g. `0.5`). `null` keeps Azure's default.
   EOT
   default     = {}
   nullable    = false
@@ -101,6 +109,28 @@ variable "databases" {
   validation {
     condition     = alltrue([for db in values(var.databases) : contains(["Geo", "GeoZone", "Local", "Zone"], db.storage_account_type)])
     error_message = "databases[*].storage_account_type must be \"Geo\", \"GeoZone\", \"Local\" or \"Zone\"."
+  }
+
+  # OpenTofu 1.9 doesn't short-circuit || or &&, so nulls are defaulted
+  # rather than guarded
+  validation {
+    condition     = alltrue([for db in values(var.databases) : db.auto_pause_delay_in_minutes == null || startswith(db.sku_name, "GP_S_")])
+    error_message = "databases[*].auto_pause_delay_in_minutes only applies to serverless General Purpose SKUs (GP_S_*)."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : contains([-1], coalesce(db.auto_pause_delay_in_minutes, -1)) || (coalesce(db.auto_pause_delay_in_minutes, -1) >= 15 && coalesce(db.auto_pause_delay_in_minutes, -1) <= 10080)])
+    error_message = "databases[*].auto_pause_delay_in_minutes must be -1 (never pause) or between 15 and 10080."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : db.min_capacity == null || startswith(db.sku_name, "GP_S_") || startswith(db.sku_name, "HS_S_")])
+    error_message = "databases[*].min_capacity only applies to serverless SKUs (GP_S_* or HS_S_*)."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : coalesce(db.min_capacity, 1) > 0])
+    error_message = "databases[*].min_capacity must be greater than 0."
   }
 }
 

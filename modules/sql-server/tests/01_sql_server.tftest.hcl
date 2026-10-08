@@ -87,6 +87,25 @@ run "entra_only_is_always_set" {
   }
 }
 
+run "serverless_database" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name                    = "GP_S_Gen5_2"
+        auto_pause_delay_in_minutes = 60
+        min_capacity                = 0.5
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_mssql_database.this["app"].sku_name == "GP_S_Gen5_2" && azurerm_mssql_database.this["app"].auto_pause_delay_in_minutes == 60 && azurerm_mssql_database.this["app"].min_capacity == 0.5
+    error_message = "A serverless database should get its auto-pause delay and minimum capacity."
+  }
+}
+
 run "databases_default_name_from_key" {
   command = plan
 

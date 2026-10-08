@@ -206,3 +206,63 @@ run "auditing_requires_diagnostic_settings" {
 
   expect_failures = [var.auditing_enabled]
 }
+
+run "auto_pause_requires_serverless_sku" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name                    = "S0"
+        auto_pause_delay_in_minutes = 60
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "auto_pause_not_on_hyperscale_serverless" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name                    = "HS_S_Gen5_2"
+        auto_pause_delay_in_minutes = 60
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "auto_pause_delay_range" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name                    = "GP_S_Gen5_2"
+        auto_pause_delay_in_minutes = 5
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "min_capacity_requires_serverless_sku" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name     = "GP_Gen5_2"
+        min_capacity = 0.5
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
