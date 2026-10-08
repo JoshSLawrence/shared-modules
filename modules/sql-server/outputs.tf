@@ -36,7 +36,7 @@ output "private_dns_records" {
     - `resource` / `subresource` - the resource and sub-resource (the
       `private_endpoints` key) the record points at.
     - `zone_name` - private DNS zone holding the record (e.g.
-      `privatelink.blob.core.windows.net`).
+      `privatelink.database.windows.net`).
     - `name` / `fqdn` - host name within the zone and its fully qualified
       name.
     - `type` - record type (`A`).

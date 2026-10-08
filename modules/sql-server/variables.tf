@@ -31,6 +31,7 @@ variable "entra_admin" {
     object_id = string
     tenant_id = optional(string)
   })
+  nullable    = false
   description = <<-EOT
     Entra ID administrator of the server. The server accepts Entra ID
     authentication only; SQL logins are always disabled.
@@ -60,8 +61,10 @@ variable "public_network_access_enabled" {
 
     - `false` (the default) - private: the public endpoint is disabled and
       the server is reachable only through `private_endpoints`.
-    - `true` - public: the endpoint accepts traffic from every network that
-      the server firewall allows (still behind Entra ID authentication).
+    - `true` - the public endpoint is enabled, but this module creates no
+      firewall rules: Azure SQL denies every client until you add
+      `azurerm_mssql_firewall_rule` resources for `id`. Clients still need
+      Entra ID authentication.
   EOT
   default     = false
   nullable    = false
@@ -69,7 +72,13 @@ variable "public_network_access_enabled" {
 
 variable "outbound_network_restriction_enabled" {
   type        = bool
-  description = "Restrict the server's outbound connections to the allowed FQDNs (e.g. to limit data exfiltration through features such as `OPENROWSET`)."
+  description = <<-EOT
+    Restrict the server's outbound connections to the allowed FQDNs (e.g. to
+    limit data exfiltration through features such as `OPENROWSET`). This
+    module can't set the allowed FQDNs, so enabling it blocks all outbound
+    connections: add `azurerm_mssql_outbound_firewall_rule` resources for any
+    FQDNs the server must reach.
+  EOT
   default     = false
   nullable    = false
 }
@@ -78,7 +87,7 @@ variable "databases" {
   type = map(object({
     name                 = optional(string)
     sku_name             = optional(string, "S0")
-    max_size_gb          = optional(number, 250)
+    max_size_gb          = optional(number)
     storage_account_type = optional(string, "Geo")
     collation            = optional(string, "SQL_Latin1_General_CP1_CI_AS")
     zone_redundant       = optional(bool, false)
@@ -92,7 +101,8 @@ variable "databases" {
     - `name` - database name. Defaults to the key.
     - `sku_name` - service objective, e.g. `S0`, `GP_Gen5_2` or `GP_S_Gen5_2`
       (serverless).
-    - `max_size_gb` - maximum size in GB.
+    - `max_size_gb` - maximum size in GB. `null` (the default) lets Azure
+      use the default for the SKU.
     - `storage_account_type` - backup storage redundancy: `Geo`, `GeoZone`,
       `Local` or `Zone`.
     - `collation` - database collation.
@@ -119,7 +129,7 @@ variable "databases" {
   }
 
   validation {
-    condition     = alltrue([for db in values(var.databases) : contains([-1], coalesce(db.auto_pause_delay_in_minutes, -1)) || (coalesce(db.auto_pause_delay_in_minutes, -1) >= 15 && coalesce(db.auto_pause_delay_in_minutes, -1) <= 10080)])
+    condition     = alltrue([for db in values(var.databases) : coalesce(db.auto_pause_delay_in_minutes, -1) == -1 || (coalesce(db.auto_pause_delay_in_minutes, -1) >= 15 && coalesce(db.auto_pause_delay_in_minutes, -1) <= 10080)])
     error_message = "databases[*].auto_pause_delay_in_minutes must be -1 (never pause) or between 15 and 10080."
   }
 
@@ -257,6 +267,10 @@ variable "lock" {
     Management lock on the server, protecting it from accidental deletion
     (`CanNotDelete`) or any change (`ReadOnly`). `name` defaults to
     `lock-<server name>`. `null` (the default) creates no lock.
+
+    Azure refuses to delete role assignments and diagnostic settings under a
+    scope with a `CanNotDelete` lock, so revoking a grant or changing
+    diagnostics needs the lock lifted first.
   EOT
   default     = null
 

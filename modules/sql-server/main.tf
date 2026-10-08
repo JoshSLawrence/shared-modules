@@ -50,6 +50,14 @@ resource "azurerm_management_lock" "this" {
   scope      = azurerm_mssql_server.this.id
   lock_level = var.lock.kind
   notes      = var.lock.notes
+
+  # A lock taken before these exist would block creating them
+  depends_on = [
+    azurerm_mssql_database.this,
+    azurerm_mssql_server_extended_auditing_policy.this,
+    azurerm_monitor_diagnostic_setting.audit,
+    azurerm_monitor_diagnostic_setting.database,
+  ]
 }
 
 resource "azurerm_role_assignment" "this" {

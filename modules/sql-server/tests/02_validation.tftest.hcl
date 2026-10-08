@@ -266,3 +266,18 @@ run "min_capacity_requires_serverless_sku" {
 
   expect_failures = [var.databases]
 }
+
+run "min_capacity_must_be_positive" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name     = "GP_S_Gen5_2"
+        min_capacity = 0
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}

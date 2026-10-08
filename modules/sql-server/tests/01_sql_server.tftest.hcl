@@ -14,8 +14,7 @@ mock_provider "azurerm" {
 
   mock_resource "azurerm_mssql_database" {
     defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Sql/servers/sql-test-001/databases/db-mock"
-    }
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Sql/servers/sql-test-001/databases/db-mock"    }
   }
 }
 
@@ -106,6 +105,24 @@ run "serverless_database" {
   }
 }
 
+run "serverless_never_pause" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name                    = "GP_S_Gen5_2"
+        auto_pause_delay_in_minutes = -1
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_mssql_database.this["app"].auto_pause_delay_in_minutes == -1
+    error_message = "An auto-pause delay of -1 (never pause) should be accepted and passed through."
+  }
+}
+
 run "databases_default_name_from_key" {
   command = plan
 
@@ -124,8 +141,8 @@ run "databases_default_name_from_key" {
   }
 
   assert {
-    condition     = azurerm_mssql_database.this["app"].name == "app" && azurerm_mssql_database.this["app"].sku_name == "S0" && azurerm_mssql_database.this["app"].max_size_gb == 250
-    error_message = "A database should default its name to the key, with SKU S0 and 250 GB."
+    condition     = azurerm_mssql_database.this["app"].name == "app" && azurerm_mssql_database.this["app"].sku_name == "S0"
+    error_message = "A database should default its name to the key, with SKU S0."
   }
 
   assert {
