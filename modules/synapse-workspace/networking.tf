@@ -10,6 +10,17 @@ resource "azurerm_synapse_firewall_rule" "allow_all" {
   end_ip_address       = "255.255.255.255"
 }
 
+# Lets Azure services (and resources in any Azure subscription) reach the
+# public endpoints; the special 0.0.0.0-0.0.0.0 range is Azure's marker for it.
+resource "azurerm_synapse_firewall_rule" "azure_services" {
+  count = var.azure_services_access_enabled ? 1 : 0
+
+  name                 = "AllowAllWindowsAzureIps"
+  synapse_workspace_id = azurerm_synapse_workspace.this.id
+  start_ip_address     = "0.0.0.0"
+  end_ip_address       = "0.0.0.0"
+}
+
 locals {
   private_endpoints_with_dns_zone_group    = var.private_endpoints_manage_dns_zone_group ? var.private_endpoints : {}
   private_endpoints_without_dns_zone_group = var.private_endpoints_manage_dns_zone_group ? {} : var.private_endpoints
@@ -106,9 +117,10 @@ resource "azurerm_synapse_managed_private_endpoint" "this" {
   subresource_name     = each.value.subresource_name
 
   # Created through the workspace's dev endpoint, which is only reachable
-  # once the firewall rule or private endpoints exist
+  # once a firewall rule or private endpoints exist
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
+    azurerm_synapse_firewall_rule.azure_services,
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]
@@ -124,6 +136,7 @@ resource "azurerm_synapse_managed_private_endpoint" "storage" {
 
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
+    azurerm_synapse_firewall_rule.azure_services,
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]

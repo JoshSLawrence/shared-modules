@@ -3,7 +3,7 @@
 # release like any other dependency; upgrading it is a change (and a version
 # bump) to this module.
 module "storage_account" {
-  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.0.1"
+  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.1.0"
   count  = var.storage_account == null ? 0 : 1
 
   name                                    = var.storage_account.name
@@ -16,7 +16,8 @@ module "storage_account" {
   public_network_access_enabled           = local.storage_public_network_access_enabled
   private_endpoints_manage_dns_zone_group = local.storage_private_endpoints_manage_dns_zone_group
   private_endpoints                       = var.storage_account.private_endpoints
-  diagnostic_settings                     = var.diagnostic_settings
+  role_assignments                        = var.storage_account.role_assignments
+  diagnostic_settings                     = local.storage_diagnostic_settings
   lock                                    = var.lock
 
   # Synapse doesn't support blob versioning or soft delete on its default
@@ -36,6 +37,15 @@ module "storage_account" {
 }
 
 locals {
+  # The workspace's own categories don't apply to the storage account, which
+  # has its own
+  storage_diagnostic_settings = var.diagnostic_settings == null ? null : {
+    log_analytics_workspace_id = var.diagnostic_settings.log_analytics_workspace_id
+    name                       = var.diagnostic_settings.name
+    log_categories             = var.diagnostic_settings.storage_log_categories
+    metric_categories          = var.diagnostic_settings.storage_metric_categories
+  }
+
   storage_public_network_access_enabled = try(coalesce(var.storage_account.public_network_access_enabled, var.public_network_access_enabled), null)
 
   storage_private_endpoints_manage_dns_zone_group = try(coalesce(var.storage_account.private_endpoints_manage_dns_zone_group, var.private_endpoints_manage_dns_zone_group), null)

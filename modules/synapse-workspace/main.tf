@@ -49,6 +49,7 @@ resource "azurerm_management_lock" "this" {
   # A lock taken before these exist would block creating them
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
+    azurerm_synapse_firewall_rule.azure_services,
     azurerm_synapse_spark_pool.this,
     azurerm_synapse_workspace_aad_admin.this,
   ]
@@ -77,12 +78,19 @@ resource "azurerm_synapse_role_assignment" "this" {
   principal_type       = each.value.principal_type
 
   # Synapse RBAC is served by the workspace's dev endpoint, which is only
-  # reachable once the firewall rule or private endpoints exist
+  # reachable once a firewall rule or private endpoints exist
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
+    azurerm_synapse_firewall_rule.azure_services,
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]
+}
+
+locals {
+  # null means "module default"; an explicit empty list means "none"
+  diag_log_categories    = try(var.diagnostic_settings.log_categories, null)
+  diag_metric_categories = try(var.diagnostic_settings.metric_categories, null) == null ? [] : var.diagnostic_settings.metric_categories
 }
 
 resource "azurerm_monitor_diagnostic_setting" "this" {
@@ -92,8 +100,22 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
   target_resource_id         = azurerm_synapse_workspace.this.id
   log_analytics_workspace_id = var.diagnostic_settings.log_analytics_workspace_id
 
-  # allLogs is a superset of the audit category group
-  enabled_log {
-    category_group = "allLogs"
+  # Without an explicit list, allLogs covers every log category (a superset
+  # of the audit group) and any added later
+  dynamic "enabled_log" {
+    for_each = local.diag_log_categories == null ? [{ category = null, category_group = "allLogs" }] : [for c in toset(local.diag_log_categories) : { category = c, category_group = null }]
+
+    content {
+      category       = enabled_log.value.category
+      category_group = enabled_log.value.category_group
+    }
+  }
+
+  dynamic "enabled_metric" {
+    for_each = toset(local.diag_metric_categories)
+
+    content {
+      category = enabled_metric.value
+    }
   }
 }

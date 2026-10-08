@@ -7,6 +7,20 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-10-08
+
+### Added
+
+- `diagnostic_settings.log_categories` and `diagnostic_settings.metric_categories` to choose the workspace's log and metric categories. `null` (the default) keeps the previous behavior (the `allLogs` category group and no metrics); `[]` enables none
+- `diagnostic_settings.storage_log_categories` and `diagnostic_settings.storage_metric_categories` for the default storage account this module creates (passed to the storage-account module; `null` uses its defaults)
+- Validation rejecting `diagnostic_settings` that would enable no log or metric category at all
+- `azure_services_access_enabled` to add the `AllowAllWindowsAzureIps` firewall rule (0.0.0.0-0.0.0.0) so Azure services can reach the workspace. Requires `public_network_access_enabled = true`
+- `storage_account.role_assignments` for extra Azure RBAC role assignments on the default storage account (same shape as the storage-account module's `role_assignments`)
+
+### Changed
+
+- Upgraded the storage-account dependency from `storage-account/v0.0.1` to `storage-account/v0.1.0`
+
 ## [v0.0.1] - 2026-10-05
 
 ### Added

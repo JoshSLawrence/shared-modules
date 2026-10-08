@@ -428,3 +428,59 @@ run "storage_dns_zone_ids_rejected_when_dns_is_policy_managed" {
   expect_failures = [var.storage_account]
 }
 
+
+run "workspace_diagnostics_with_nothing_enabled" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = []
+    }
+  }
+
+  expect_failures = [var.diagnostic_settings]
+}
+
+run "storage_diagnostics_with_nothing_enabled" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      storage_log_categories     = []
+      storage_metric_categories  = []
+    }
+  }
+
+  expect_failures = [var.diagnostic_settings]
+}
+
+run "azure_services_access_requires_public_access" {
+  command = plan
+
+  variables {
+    azure_services_access_enabled = true
+  }
+
+  expect_failures = [var.azure_services_access_enabled]
+}
+
+run "storage_role_assignment_principal_type_is_validated" {
+  command = plan
+
+  variables {
+    storage_account = {
+      name = "stsynwtest"
+      role_assignments = {
+        bad = {
+          role_definition_id_or_name = "Reader"
+          principal_id               = "00000000-0000-0000-0000-000000000009"
+          principal_type             = "Robot"
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.storage_account]
+}
