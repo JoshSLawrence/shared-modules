@@ -236,9 +236,32 @@ variable "diagnostic_settings" {
   type = object({
     log_analytics_workspace_id = string
     name                       = optional(string, "diag-log-analytics")
+    log_categories             = optional(list(string))
+    metric_categories          = optional(list(string))
   })
-  description = "Send the account's transaction metrics, and the blob service's read/write/delete logs and metrics, to a Log Analytics workspace. `null` (the default) disables diagnostics."
+  description = <<-EOT
+    Send the account's metrics, and the blob service's logs and metrics, to a
+    Log Analytics workspace. `null` (the default) disables diagnostics.
+
+    - `log_categories`: blob service log categories to enable. `null`
+      (the default) enables `StorageRead`, `StorageWrite` and `StorageDelete`;
+      `[]` enables none.
+    - `metric_categories`: metric categories to enable on both the account
+      and the blob service. `null` (the default) enables `Transaction`; `[]`
+      enables none. The account-level setting is only created when at least
+      one metric category is enabled.
+
+    At least one log or metric category must end up enabled.
+  EOT
   default     = null
+
+  validation {
+    condition = var.diagnostic_settings == null || (
+      length(try(var.diagnostic_settings.log_categories, null) == null ? ["StorageRead", "StorageWrite", "StorageDelete"] : var.diagnostic_settings.log_categories) +
+      length(try(var.diagnostic_settings.metric_categories, null) == null ? ["Transaction"] : var.diagnostic_settings.metric_categories) > 0
+    )
+    error_message = "diagnostic_settings must enable at least one log or metric category: set log_categories and/or metric_categories to a non-empty list (or leave them null for the defaults), or set diagnostic_settings to null."
+  }
 }
 
 variable "lock" {

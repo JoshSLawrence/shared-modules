@@ -386,3 +386,82 @@ run "policy_managed_dns" {
   }
 }
 
+
+run "diagnostics_default_categories" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+    }
+  }
+
+  assert {
+    condition     = toset([for l in azurerm_monitor_diagnostic_setting.blob[0].enabled_log : l.category]) == toset(["StorageRead", "StorageWrite", "StorageDelete"])
+    error_message = "Blob diagnostics should default to read, write and delete logs."
+  }
+
+  assert {
+    condition     = toset([for m in azurerm_monitor_diagnostic_setting.blob[0].enabled_metric : m.category]) == toset(["Transaction"]) && toset([for m in azurerm_monitor_diagnostic_setting.account[0].enabled_metric : m.category]) == toset(["Transaction"])
+    error_message = "Account and blob diagnostics should default to Transaction metrics."
+  }
+}
+
+run "diagnostics_custom_categories" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = ["StorageRead"]
+      metric_categories          = ["Capacity", "Transaction"]
+    }
+  }
+
+  assert {
+    condition     = toset([for l in azurerm_monitor_diagnostic_setting.blob[0].enabled_log : l.category]) == toset(["StorageRead"])
+    error_message = "Only the requested log categories should be enabled."
+  }
+
+  assert {
+    condition     = toset([for m in azurerm_monitor_diagnostic_setting.blob[0].enabled_metric : m.category]) == toset(["Capacity", "Transaction"]) && toset([for m in azurerm_monitor_diagnostic_setting.account[0].enabled_metric : m.category]) == toset(["Capacity", "Transaction"])
+    error_message = "The requested metric categories should be enabled on both settings."
+  }
+}
+
+run "diagnostics_metrics_off" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      metric_categories          = []
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.account) == 0
+    error_message = "The account-level setting only emits metrics, so it should be omitted when metrics are off."
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.blob) == 1 && length(azurerm_monitor_diagnostic_setting.blob[0].enabled_metric) == 0 && length(azurerm_monitor_diagnostic_setting.blob[0].enabled_log) == 3
+    error_message = "The blob setting should keep its logs and have no metrics."
+  }
+}
+
+run "diagnostics_metrics_only" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = []
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.account) == 1 && length(azurerm_monitor_diagnostic_setting.blob) == 1 && length(azurerm_monitor_diagnostic_setting.blob[0].enabled_log) == 0
+    error_message = "Without logs, both settings should carry only metrics."
+  }
+}
