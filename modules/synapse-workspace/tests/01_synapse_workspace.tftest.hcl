@@ -606,7 +606,6 @@ run "storage_dns_management_can_be_overridden" {
   }
 }
 
-
 run "diagnostics_default_categories" {
   command = plan
 
@@ -727,7 +726,9 @@ run "storage_role_assignments_are_accepted" {
   }
 
   assert {
-    condition     = var.storage_account.role_assignments["readers"].role_definition_id_or_name == "Storage Blob Data Reader"
+    # Planning through storage-account/v0.1.0 is what proves the passthrough:
+    # the module would reject an unknown or malformed role_assignments value.
+    condition     = length(module.storage_account) == 1
     error_message = "Storage role assignments should be accepted and passed to the storage-account module."
   }
 }

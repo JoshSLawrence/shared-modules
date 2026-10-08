@@ -428,7 +428,6 @@ run "storage_dns_zone_ids_rejected_when_dns_is_policy_managed" {
   expect_failures = [var.storage_account]
 }
 
-
 run "workspace_diagnostics_with_nothing_enabled" {
   command = plan
 

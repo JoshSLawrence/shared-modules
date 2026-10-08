@@ -171,6 +171,13 @@ variable "azure_services_access_enabled" {
     lets Azure services reach the workspace's public endpoints. Only valid
     with `public_network_access_enabled = true`; a private workspace is
     reached through `private_endpoints` instead. Default `false`.
+
+    This is separate from `public_network_access_enabled`'s `AllowAll` rule
+    (an IP range): it is the portal's "Allow Azure services and resources to
+    access this workspace" setting, which also covers traffic the IP rule
+    doesn't, such as Azure services reaching the workspace from Azure
+    networks via service endpoints, and features and portal checks that look
+    for this rule.
   EOT
   default     = false
   nullable    = false
@@ -613,7 +620,8 @@ variable "diagnostic_settings" {
     - `storage_log_categories`, `storage_metric_categories`: the same for the
       storage account this module creates (passed as the storage-account
       module's `log_categories` and `metric_categories`). `null` (the
-      default) uses that module's defaults; `[]` enables none.
+      default) uses that module's defaults; `[]` enables none. Ignored with
+      `existing_storage`.
 
     The workspace's setting must end up with at least one log or metric
     category enabled.
@@ -622,16 +630,16 @@ variable "diagnostic_settings" {
 
   validation {
     condition = var.diagnostic_settings == null || (
-      length(try(var.diagnostic_settings.log_categories, null) == null ? ["allLogs"] : var.diagnostic_settings.log_categories) +
-      length(try(var.diagnostic_settings.metric_categories, null) == null ? [] : var.diagnostic_settings.metric_categories) > 0
+      try(length(var.diagnostic_settings.log_categories), 1) +
+      try(length(var.diagnostic_settings.metric_categories), 0) > 0
     )
     error_message = "diagnostic_settings must enable at least one workspace log or metric category: leave log_categories null for the allLogs default or list at least one category, or set diagnostic_settings to null."
   }
 
   validation {
     condition = var.diagnostic_settings == null || (
-      length(try(var.diagnostic_settings.storage_log_categories, null) == null ? ["StorageRead"] : var.diagnostic_settings.storage_log_categories) +
-      length(try(var.diagnostic_settings.storage_metric_categories, null) == null ? ["Transaction"] : var.diagnostic_settings.storage_metric_categories) > 0
+      try(length(var.diagnostic_settings.storage_log_categories), 1) +
+      try(length(var.diagnostic_settings.storage_metric_categories), 1) > 0
     )
     error_message = "diagnostic_settings must enable at least one storage log or metric category: leave storage_log_categories and/or storage_metric_categories null for the storage-account defaults, or list at least one category."
   }
@@ -648,6 +656,10 @@ variable "lock" {
     creates, protecting them from accidental deletion (`CanNotDelete`) or any
     change (`ReadOnly`). `name` defaults to `lock-<resource name>`. `null`
     (the default) creates no lock.
+
+    Azure refuses to delete role assignments and diagnostic settings under a
+    scope with a `CanNotDelete` lock, so revoking a grant or changing
+    diagnostics needs the lock lifted first.
   EOT
   default     = null
 
