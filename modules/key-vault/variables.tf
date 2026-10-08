@@ -154,7 +154,8 @@ variable "diagnostic_settings" {
     metric_categories          = optional(list(string))
   })
   description = <<-EOT
-    Send the vault's logs (including audit events) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics.
+    Send the vault's logs (including audit events) and metrics to a Log
+    Analytics workspace. `null` (the default) disables diagnostics.
 
     - `log_categories`: log categories to enable. `null` (the default)
       enables the `allLogs` category group; `[]` enables no logs.
@@ -184,6 +185,10 @@ variable "lock" {
     Management lock on the vault, protecting it from accidental deletion
     (`CanNotDelete`) or any change (`ReadOnly`). `name` defaults to
     `lock-<vault name>`. `null` (the default) creates no lock.
+
+    Azure refuses to delete role assignments and diagnostic settings under a
+    scope with a `CanNotDelete` lock, so revoking a grant or changing
+    diagnostics needs the lock lifted first.
   EOT
   default     = null
 
