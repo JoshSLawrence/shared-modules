@@ -7,6 +7,14 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-10-08
+
+### Added
+
+- `diagnostic_settings.log_categories` and `diagnostic_settings.metric_categories` to choose the blob service log categories and the metric categories sent to Log Analytics. `null` (the default) keeps the previous behavior (`StorageRead`, `StorageWrite`, `StorageDelete` and `Transaction`); `[]` enables none; with `metric_categories = []` the account-level setting (metrics only) is not created
+- Validation rejecting `diagnostic_settings` that would enable no log or metric category at all
+- `containers[*].role_assignments` for Azure RBAC role assignments scoped to a single container, e.g. to let a principal read one container's data and no other's
+
 ## [v0.0.1] - 2026-10-05
 
 ### Added

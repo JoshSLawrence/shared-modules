@@ -72,6 +72,24 @@ resource "azurerm_storage_container" "this" {
   metadata              = each.value.metadata
 }
 
+resource "azurerm_role_assignment" "containers" {
+  for_each = merge([
+    for ck, c in var.containers : {
+      for rk, ra in c.role_assignments : "${ck}/${rk}" => merge(ra, { container = ck })
+    }
+  ]...)
+
+  scope                            = azurerm_storage_container.this[each.value.container].id
+  principal_id                     = each.value.principal_id
+  principal_type                   = each.value.principal_type
+  role_definition_id               = startswith(each.value.role_definition_id_or_name, "/") ? each.value.role_definition_id_or_name : null
+  role_definition_name             = startswith(each.value.role_definition_id_or_name, "/") ? null : each.value.role_definition_id_or_name
+  description                      = each.value.description
+  condition                        = each.value.condition
+  condition_version                = each.value.condition_version
+  skip_service_principal_aad_check = each.value.skip_service_principal_aad_check
+}
+
 resource "azurerm_management_lock" "this" {
   count = var.lock == null ? 0 : 1
 
@@ -80,8 +98,9 @@ resource "azurerm_management_lock" "this" {
   lock_level = var.lock.kind
   notes      = var.lock.notes
 
-  # A lock taken before the containers exist would block creating them
-  depends_on = [azurerm_storage_container.this]
+  # A lock taken before the containers and their role assignments exist would
+  # block creating them
+  depends_on = [azurerm_storage_container.this, azurerm_role_assignment.containers]
 }
 
 resource "azurerm_role_assignment" "this" {
@@ -98,39 +117,50 @@ resource "azurerm_role_assignment" "this" {
   skip_service_principal_aad_check = each.value.skip_service_principal_aad_check
 }
 
+locals {
+  # null means "module default"; an explicit empty list means "none"
+  diag_log_categories    = try(var.diagnostic_settings.log_categories, null) == null ? ["StorageRead", "StorageWrite", "StorageDelete"] : var.diagnostic_settings.log_categories
+  diag_metric_categories = try(var.diagnostic_settings.metric_categories, null) == null ? ["Transaction"] : var.diagnostic_settings.metric_categories
+}
+
 resource "azurerm_monitor_diagnostic_setting" "account" {
-  count = var.diagnostic_settings == null ? 0 : 1
+  # The account itself only emits metrics, so there's nothing to set up
+  # without any
+  count = var.diagnostic_settings != null && length(local.diag_metric_categories) > 0 ? 1 : 0
 
   name                       = var.diagnostic_settings.name
   target_resource_id         = azurerm_storage_account.this.id
   log_analytics_workspace_id = var.diagnostic_settings.log_analytics_workspace_id
 
-  # The account itself only emits metrics; logs come from each service
-  enabled_metric {
-    category = "Transaction"
+  dynamic "enabled_metric" {
+    for_each = toset(local.diag_metric_categories)
+
+    content {
+      category = enabled_metric.value
+    }
   }
 }
 
 resource "azurerm_monitor_diagnostic_setting" "blob" {
-  count = var.diagnostic_settings == null ? 0 : 1
+  count = var.diagnostic_settings != null && length(local.diag_log_categories) + length(local.diag_metric_categories) > 0 ? 1 : 0
 
   name                       = var.diagnostic_settings.name
   target_resource_id         = "${azurerm_storage_account.this.id}/blobServices/default"
   log_analytics_workspace_id = var.diagnostic_settings.log_analytics_workspace_id
 
-  enabled_log {
-    category = "StorageRead"
+  dynamic "enabled_log" {
+    for_each = toset(local.diag_log_categories)
+
+    content {
+      category = enabled_log.value
+    }
   }
 
-  enabled_log {
-    category = "StorageWrite"
-  }
+  dynamic "enabled_metric" {
+    for_each = toset(local.diag_metric_categories)
 
-  enabled_log {
-    category = "StorageDelete"
-  }
-
-  enabled_metric {
-    category = "Transaction"
+    content {
+      category = enabled_metric.value
+    }
   }
 }

@@ -140,11 +140,25 @@ variable "containers" {
   type = map(object({
     name     = optional(string)
     metadata = optional(map(string), {})
+    role_assignments = optional(map(object({
+      role_definition_id_or_name       = string
+      principal_id                     = string
+      principal_type                   = optional(string)
+      description                      = optional(string)
+      condition                        = optional(string)
+      condition_version                = optional(string)
+      skip_service_principal_aad_check = optional(bool, false)
+    })), {})
   }))
   description = <<-EOT
     Private blob containers (Data Lake file systems when `is_hns_enabled` is
     `true`) to create, keyed by an arbitrary static name. `name` defaults to
     the key.
+
+    `role_assignments` grants Azure RBAC roles scoped to the container alone
+    (same shape as the account-level `role_assignments`), e.g. Storage Blob
+    Data Reader on one container, so a principal sees that container's data
+    and no other's.
 
     Containers are created through Azure Resource Manager, not the storage
     data plane, so OpenTofu doesn't need network access to a private account
@@ -159,6 +173,11 @@ variable "containers" {
       can(regex("^[a-z0-9]([a-z0-9]|-[a-z0-9]){2,62}$", coalesce(c.name, k)))
     ])
     error_message = "Container names must be 3-63 lowercase letters, digits and single hyphens, starting and ending with a letter or digit."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for c in values(var.containers) : [for ra in values(c.role_assignments) : contains(["User", "Group", "ServicePrincipal"], coalesce(ra.principal_type, "User"))]]))
+    error_message = "containers[*].role_assignments[*].principal_type must be \"User\", \"Group\" or \"ServicePrincipal\"."
   }
 }
 
@@ -236,9 +255,32 @@ variable "diagnostic_settings" {
   type = object({
     log_analytics_workspace_id = string
     name                       = optional(string, "diag-log-analytics")
+    log_categories             = optional(list(string))
+    metric_categories          = optional(list(string))
   })
-  description = "Send the account's transaction metrics, and the blob service's read/write/delete logs and metrics, to a Log Analytics workspace. `null` (the default) disables diagnostics."
+  description = <<-EOT
+    Send the account's metrics, and the blob service's logs and metrics, to a
+    Log Analytics workspace. `null` (the default) disables diagnostics.
+
+    - `log_categories`: blob service log categories to enable. `null`
+      (the default) enables `StorageRead`, `StorageWrite` and `StorageDelete`;
+      `[]` enables none.
+    - `metric_categories`: metric categories to enable on both the account
+      and the blob service. `null` (the default) enables `Transaction`; `[]`
+      enables none. The account-level setting is only created when at least
+      one metric category is enabled.
+
+    At least one log or metric category must end up enabled.
+  EOT
   default     = null
+
+  validation {
+    condition = var.diagnostic_settings == null || (
+      length(try(var.diagnostic_settings.log_categories, null) == null ? ["StorageRead", "StorageWrite", "StorageDelete"] : var.diagnostic_settings.log_categories) +
+      length(try(var.diagnostic_settings.metric_categories, null) == null ? ["Transaction"] : var.diagnostic_settings.metric_categories) > 0
+    )
+    error_message = "diagnostic_settings must enable at least one log or metric category: set log_categories and/or metric_categories to a non-empty list (or leave them null for the defaults), or set diagnostic_settings to null."
+  }
 }
 
 variable "lock" {
@@ -254,6 +296,10 @@ variable "lock" {
 
     A `ReadOnly` lock also blocks listing account keys and creating
     containers through Azure Resource Manager.
+
+    A `CanNotDelete` lock also blocks deleting role assignments and diagnostic
+    settings under its scope, so revoking a grant or removing a diagnostic
+    setting needs the lock lifted first.
   EOT
   default     = null
 
