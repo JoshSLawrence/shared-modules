@@ -296,6 +296,10 @@ variable "lock" {
 
     A `ReadOnly` lock also blocks listing account keys and creating
     containers through Azure Resource Manager.
+
+    Azure refuses to delete role assignments and diagnostic settings under a
+    scope with a `CanNotDelete` lock, so revoking a grant or changing
+    diagnostics needs the lock lifted first.
   EOT
   default     = null
 

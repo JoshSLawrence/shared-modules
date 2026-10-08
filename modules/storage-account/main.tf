@@ -98,8 +98,9 @@ resource "azurerm_management_lock" "this" {
   lock_level = var.lock.kind
   notes      = var.lock.notes
 
-  # A lock taken before the containers exist would block creating them
-  depends_on = [azurerm_storage_container.this]
+  # A lock taken before the containers and their role assignments exist would
+  # block creating them
+  depends_on = [azurerm_storage_container.this, azurerm_role_assignment.containers]
 }
 
 resource "azurerm_role_assignment" "this" {

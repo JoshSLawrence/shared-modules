@@ -394,7 +394,6 @@ run "policy_managed_dns" {
   }
 }
 
-
 run "diagnostics_default_categories" {
   command = plan
 
@@ -496,5 +495,10 @@ run "container_role_assignments" {
   assert {
     condition     = length(azurerm_role_assignment.containers) == 1 && azurerm_role_assignment.containers["reports/analysts"].role_definition_name == "Storage Blob Data Reader" && azurerm_role_assignment.containers["reports/analysts"].principal_type == "Group"
     error_message = "A container role assignment should be created per container grant, keyed \"<container>/<grant>\"."
+  }
+
+  assert {
+    condition     = azurerm_role_assignment.containers["reports/analysts"].scope == azurerm_storage_container.this["reports"].id && endswith(azurerm_role_assignment.containers["reports/analysts"].scope, "/blobServices/default/containers/mock")
+    error_message = "A container role assignment should be scoped to the container's ID, not the account's."
   }
 }
