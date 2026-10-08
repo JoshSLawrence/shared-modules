@@ -1,0 +1,149 @@
+# CI workflow
+# Reports the health of `main`: the README badge points at this workflow's
+# push runs on main only (?branch=main&event=push), so a red badge always
+# means main itself is broken -- never that someone's pull request failed.
+#
+# Pull requests are validated by pr-validation.yaml (whose "Validation Result"
+# check gates merging); this workflow deliberately does not run on them.
+#
+# Unlike PR validation, which checks only the modules a PR changed, this
+# checks EVERY module, since a merge can break a module it didn't touch (a
+# new tflint rule, a yanked provider, a drifted dependency). Skipped on
+# purpose:
+# - Integration tests: they provision real Azure infrastructure and need an
+#   approval-gated OIDC identity. This workflow has no id-token permission.
+# - VERSION bump / format checks and the PR comment: they compare a PR
+#   against main, which is meaningless once the change is on main (the
+#   release workflow reconciles VERSION files against tags).
+#
+# Not path-filtered: a change to .github/, mise-tasks/ or the cookiecutter
+# pin can break main just as well as a module change.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# Newest push wins. Safe to cancel mid-run because nothing here touches real
+# infrastructure (contrast with pr-validation.yaml's integration job). The
+# release workflow has its own group, so this never cancels a release.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect Modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      has-changes: ${{ steps.detect.outputs.has-changes }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: List all modules
+        id: detect
+        run: .github/scripts/detect-changed-modules.sh
+        env:
+          DETECT_ALL: "true"
+
+  repo:
+    name: Repo Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Set up mise
+        id: setup
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.12
+
+      - name: Lint scripts and workflows
+        run: .github/scripts/repo-lint.sh
+
+      - name: Render and check module template
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/template-check.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Check iac/
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/iac-check.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  validate:
+    name: Validate (${{ matrix.module }})
+    needs: detect
+    if: needs.detect.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        module: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    env:
+      WORKING_DIR: modules/${{ matrix.module }}
+      # Only the module's own mise.toml pins are used; see pr-validation.yaml.
+      MISE_CEILING_PATHS: ${{ github.workspace }}/modules
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up mise
+        id: setup
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.9.12
+          working_directory: ${{ env.WORKING_DIR }}
+
+      - name: Format check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-fmt-check.sh
+
+      - name: OpenTofu validate
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-validate-check.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: TFLint check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-lint-check.sh
+        env:
+          TFLINT_RECURSIVE: "true"
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Trivy security scan
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-security-check.sh
+
+      - name: Terraform docs check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-docs-check.sh
+
+      # Unit tests only (tests/01_-89_, mocked providers). Never integration.
+      - name: OpenTofu unit tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: .github/scripts/tofu-test-check.sh
+        env:
+          TOFU_TEST_SCOPE: unit
+          GITHUB_TOKEN: ${{ github.token }}
