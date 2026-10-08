@@ -8,8 +8,9 @@
 #
 # Unlike PR validation, which checks only the modules a PR changed, this
 # checks EVERY module, since a merge can break a module it didn't touch (a
-# new tflint rule, a yanked provider, a drifted dependency). Skipped on
-# purpose:
+# new tflint rule, a yanked provider, a drifted dependency; caught on the
+# next push to main -- there's no schedule, so the badge only ever reflects
+# push runs). Skipped on purpose:
 # - Integration tests: they provision real Azure infrastructure and need an
 #   approval-gated OIDC identity. This workflow has no id-token permission.
 # - VERSION bump / format checks and the PR comment: they compare a PR
@@ -29,12 +30,8 @@ on:
 permissions:
   contents: read
 
-# Newest push wins. Safe to cancel mid-run because nothing here touches real
-# infrastructure (contrast with pr-validation.yaml's integration job). The
-# release workflow has its own group, so this never cancels a release.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+# No concurrency group: a cancelled run would show on the badge as if main were
+# broken, and merges are rare enough to let every push finish.
 
 jobs:
   detect:
@@ -88,6 +85,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+  # Keep in sync with pr-validation.yaml's validate job.
   validate:
     name: Validate (${{ matrix.module }})
     needs: detect

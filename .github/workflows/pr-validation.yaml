@@ -116,6 +116,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+  # Keep in sync with ci.yaml's validate job.
   validate:
     name: Validate (${{ matrix.module }})
     needs: detect

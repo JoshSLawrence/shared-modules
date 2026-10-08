@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Trivy misconfiguration scan for a module. Used by the PR validation workflow.
+# Trivy misconfiguration scan for a module. Used by the PR validation and CI workflows.
 #
 # Trivy picks up the module's own trivy.yaml from WORKING_DIR, which sets the
 # severity threshold and exit code -- the same file the pre-commit hook

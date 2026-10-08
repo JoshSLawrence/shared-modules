@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
 # Detects modules with any changed file (under modules/<name>/) and exposes
-# them as step outputs for the PR validation workflow, so every module a PR
+# them as step outputs for the PR validation and CI workflows, so every module a PR
 # touches gets validated -- not just those with .tf changes. A tests-, lint
 # config-, or docs-only change can break validation just as easily.
 #
 # With DETECT_ALL=true (the CI workflow on pushes to main) every module under
 # modules/ is selected instead and nothing is diffed: main's health is about
 # the whole repo, not about what one merge touched.
+#
 # Outputs:
 #   - matrix: JSON array of module names for the validation job's matrix
 #   - has-changes: true/false flag

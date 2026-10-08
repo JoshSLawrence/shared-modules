@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# OpenTofu validate check for a module. Used by the PR validation workflow.
+# OpenTofu validate check for a module. Used by the PR validation and CI workflows.
 #
 # Environment variables:
 #   WORKING_DIR  - module directory to check (required)

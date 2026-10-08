@@ -4,7 +4,7 @@
 # scripts, workflow definitions -- which the per-module validation never
 # looks at. Runs the relevant pre-commit hooks from .pre-commit-config.yaml
 # against all files, so CI and local hooks share one definition. Used by the
-# PR validation workflow; tools come from the repo-root mise.toml.
+# PR validation and CI workflows; tools come from the repo-root mise.toml.
 #
 # check-added-large-files isn't run here: it only inspects files staged for
 # commit, so it can only ever fire locally.

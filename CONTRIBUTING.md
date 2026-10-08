@@ -174,9 +174,9 @@ CI/CD runs on GitHub Actions. Workflow definitions live in
   runs **Repo Checks** and a **Validate** leg for *every* module (not just
   changed ones: a merge can break a module it didn't touch) with fmt,
   validate, tflint, trivy, terraform-docs drift, and unit tests. It never
-  runs integration tests, the VERSION checks, or PR comments, has no cloud
-  credentials, and a newer push cancels an older run. It's not required for
-  merging; it exists to tell you if `main` went red.
+  runs integration tests, the VERSION checks, or PR comments, and has no
+  cloud credentials. It's not required for merging; it exists to tell you
+  if `main` went red.
 - **`pr-validation.yaml`** — runs on every PR to `main`:
   - **Detect Changes** finds every module with *any* changed file under
     `modules/<name>/` (`.tf`, tests, examples, lint/scan config, docs, ...)
@@ -224,11 +224,10 @@ When adding or changing a workflow:
    trailing comment (`uses: owner/action@<sha> # vX.Y.Z`). Dependabot
    (`.github/dependabot.yml`) opens PRs to keep those pins current.
 3. **Grant least-privilege `permissions:`** per workflow/job. CI is
-   read-only throughout, and PR validation
-   is read-only apart from `id-token: write` on the Integration job for
-   Azure OIDC; the iac jobs add `id-token: write` (state access) and
-   `pull-requests: write` (the plan comment); only the release job gets
-   `contents: write`.
+   read-only throughout, and PR validation is read-only apart from
+   `id-token: write` on the Integration job for Azure OIDC; the iac jobs
+   add `id-token: write` (state access) and `pull-requests: write` (the
+   plan comment); only the release job gets `contents: write`.
 4. **New third-party actions must be allow-listed** in
    `iac/actions.tf` (and pinned to a SHA), or GitHub refuses to run them.
 5. **Set `timeout-minutes` on every job** so a hung step doesn't burn the
