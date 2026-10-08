@@ -158,3 +158,17 @@ run "dns_zone_ids_rejected_when_dns_is_policy_managed" {
   expect_failures = [var.private_endpoints]
 }
 
+
+run "diagnostics_with_nothing_enabled" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = []
+      metric_categories          = []
+    }
+  }
+
+  expect_failures = [var.diagnostic_settings]
+}

@@ -41,7 +41,8 @@ The factory is private unless you opt out:
   runtime in that network: create one with `managed_integration_runtime`,
   or publish one from Git.
 - Optional `github_configuration`, `role_assignments`,
-  `diagnostic_settings` and `lock` (an Azure management lock against
+  `diagnostic_settings` (all log and metric categories unless you list
+  specific ones) and `lock` (an Azure management lock against
   deletion).
 
 Grant the factory access to data with role assignments on the target, e.g.
@@ -153,7 +154,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings) | Send the factory's logs (pipeline, activity and trigger runs, and more) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics. | <pre>object({<br/>    log_analytics_workspace_id = string<br/>    name                       = optional(string, "diag-log-analytics")<br/>  })</pre> | `null` | no |
+| <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings) | Send the factory's logs (pipeline, activity and trigger runs, and more) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics.<br/><br/>- `log_categories`: log categories to enable. `null` (the default)<br/>  enables the `allLogs` category group; `[]` enables no logs.<br/>- `metric_categories`: metric categories to enable. `null` (the default)<br/>  enables `AllMetrics`; `[]` enables no metrics.<br/><br/>At least one log or metric category must end up enabled. | <pre>object({<br/>    log_analytics_workspace_id = string<br/>    name                       = optional(string, "diag-log-analytics")<br/>    log_categories             = optional(list(string))<br/>    metric_categories          = optional(list(string))<br/>  })</pre> | `null` | no |
 | <a name="input_github_configuration"></a> [github\_configuration](#input\_github\_configuration) | Connect ADF Studio to a GitHub repository for source control.<br/>`branch_name` is the collaboration branch and `root_folder` the folder<br/>holding factory artifacts (e.g. `/datafactory`). `git_url` is only<br/>needed for GitHub Enterprise Server. A repository admin still has to<br/>approve the Data Factory app's access. `null` (the default) leaves Git<br/>integration off. | <pre>object({<br/>    account_name       = string<br/>    repository_name    = string<br/>    branch_name        = string<br/>    root_folder        = optional(string, "/")<br/>    git_url            = optional(string)<br/>    publishing_enabled = optional(bool, true)<br/>  })</pre> | `null` | no |
 | <a name="input_identity_ids"></a> [identity\_ids](#input\_identity\_ids) | User-assigned managed identities to attach in addition to the always-on system-assigned identity. | `list(string)` | `[]` | no |
 | <a name="input_location"></a> [location](#input\_location) | Azure region to create the Data Factory in (e.g. `eastus`). | `string` | n/a | yes |
