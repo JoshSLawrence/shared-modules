@@ -49,6 +49,12 @@ resource "azurerm_role_assignment" "this" {
   skip_service_principal_aad_check = each.value.skip_service_principal_aad_check
 }
 
+locals {
+  # null means "module default"; an explicit empty list means "none"
+  diag_log_categories    = try(var.diagnostic_settings.log_categories, null)
+  diag_metric_categories = try(var.diagnostic_settings.metric_categories, null) == null ? ["AllMetrics"] : var.diagnostic_settings.metric_categories
+}
+
 resource "azurerm_monitor_diagnostic_setting" "this" {
   count = var.diagnostic_settings == null ? 0 : 1
 
@@ -56,12 +62,22 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
   target_resource_id         = azurerm_key_vault.this.id
   log_analytics_workspace_id = var.diagnostic_settings.log_analytics_workspace_id
 
-  # allLogs is a superset of the audit category group
-  enabled_log {
-    category_group = "allLogs"
+  # Without an explicit list, allLogs covers every log category (a superset
+  # of the audit group) and any added later
+  dynamic "enabled_log" {
+    for_each = local.diag_log_categories == null ? [{ category = null, category_group = "allLogs" }] : [for c in toset(local.diag_log_categories) : { category = c, category_group = null }]
+
+    content {
+      category       = enabled_log.value.category
+      category_group = enabled_log.value.category_group
+    }
   }
 
-  enabled_metric {
-    category = "AllMetrics"
+  dynamic "enabled_metric" {
+    for_each = toset(local.diag_metric_categories)
+
+    content {
+      category = enabled_metric.value
+    }
   }
 }

@@ -285,3 +285,76 @@ run "policy_managed_dns" {
   }
 }
 
+run "diagnostics_default_categories" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.this[0].enabled_log) == 1 && one(azurerm_monitor_diagnostic_setting.this[0].enabled_log).category_group == "allLogs"
+    error_message = "Logs should default to the allLogs category group."
+  }
+
+  assert {
+    condition     = toset([for m in azurerm_monitor_diagnostic_setting.this[0].enabled_metric : m.category]) == toset(["AllMetrics"])
+    error_message = "Metrics should default to AllMetrics."
+  }
+}
+
+run "diagnostics_custom_categories" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = ["AuditEvent", "AzurePolicyEvaluationDetails"]
+      metric_categories          = ["AllMetrics"]
+    }
+  }
+
+  assert {
+    condition     = toset([for l in azurerm_monitor_diagnostic_setting.this[0].enabled_log : l.category]) == toset(["AuditEvent", "AzurePolicyEvaluationDetails"]) && alltrue([for l in azurerm_monitor_diagnostic_setting.this[0].enabled_log : l.category_group == null])
+    error_message = "Exactly the requested log categories should be enabled, with no category group."
+  }
+
+  assert {
+    condition     = toset([for m in azurerm_monitor_diagnostic_setting.this[0].enabled_metric : m.category]) == toset(["AllMetrics"])
+    error_message = "Exactly the requested metric categories should be enabled."
+  }
+}
+
+run "diagnostics_metrics_off" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      metric_categories          = []
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.this[0].enabled_metric) == 0 && length(azurerm_monitor_diagnostic_setting.this[0].enabled_log) == 1
+    error_message = "Logs should stay enabled while metrics are off."
+  }
+}
+
+run "diagnostics_logs_off" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = []
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.this[0].enabled_log) == 0 && length(azurerm_monitor_diagnostic_setting.this[0].enabled_metric) == 1
+    error_message = "Metrics should stay enabled while logs are off."
+  }
+}

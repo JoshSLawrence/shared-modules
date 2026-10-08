@@ -150,9 +150,29 @@ variable "diagnostic_settings" {
   type = object({
     log_analytics_workspace_id = string
     name                       = optional(string, "diag-log-analytics")
+    log_categories             = optional(list(string))
+    metric_categories          = optional(list(string))
   })
-  description = "Send the vault's logs (including audit events) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics."
+  description = <<-EOT
+    Send the vault's logs (including audit events) and metrics to a Log
+    Analytics workspace. `null` (the default) disables diagnostics.
+
+    - `log_categories`: log categories to enable. `null` (the default)
+      enables the `allLogs` category group; `[]` enables no logs.
+    - `metric_categories`: metric categories to enable. `null` (the default)
+      enables `AllMetrics`; `[]` enables no metrics.
+
+    At least one log or metric category must end up enabled.
+  EOT
   default     = null
+
+  validation {
+    condition = var.diagnostic_settings == null || (
+      length(try(var.diagnostic_settings.log_categories, null) == null ? ["allLogs"] : var.diagnostic_settings.log_categories) +
+      length(try(var.diagnostic_settings.metric_categories, null) == null ? ["AllMetrics"] : var.diagnostic_settings.metric_categories) > 0
+    )
+    error_message = "diagnostic_settings must enable at least one log or metric category: set log_categories and/or metric_categories to a non-empty list (or leave them null for the defaults), or set diagnostic_settings to null."
+  }
 }
 
 variable "lock" {
@@ -165,6 +185,10 @@ variable "lock" {
     Management lock on the vault, protecting it from accidental deletion
     (`CanNotDelete`) or any change (`ReadOnly`). `name` defaults to
     `lock-<vault name>`. `null` (the default) creates no lock.
+
+    A `CanNotDelete` lock also blocks deleting role assignments and diagnostic
+    settings under its scope, so revoking a grant or removing a diagnostic
+    setting needs the lock lifted first.
   EOT
   default     = null
 
