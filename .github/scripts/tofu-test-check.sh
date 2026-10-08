@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Runs OpenTofu's native test framework (tofu test) for a module. Used by the
-# PR validation workflow.
+# PR validation and CI workflows.
 #
 # Environment variables:
 #   WORKING_DIR       - module directory to check (required)

@@ -3,7 +3,7 @@
 # Runs the module checks (fmt, validate, tflint, trivy, terraform-docs, tofu
 # test) against iac/, the root module that configures this repository on
 # GitHub. Validation only -- it never applies anything (see iac/README.md
-# for how changes are applied). Used by the PR validation workflow; safe to
+# for how changes are applied). Used by the PR validation and CI workflows; safe to
 # run locally.
 #
 

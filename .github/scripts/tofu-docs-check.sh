@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Checks that a module's terraform-docs generated README.md is up to date.
-# Used by the PR validation workflow. Regenerates using the module's own
+# Used by the PR validation and CI workflows. Regenerates using the module's own
 # .terraform-docs.yaml (same as the pre-commit hook and post-gen template
 # hook) and fails if that changes anything.
 #

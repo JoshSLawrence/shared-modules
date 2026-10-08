@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 #
 # Detects modules with any changed file (under modules/<name>/) and exposes
-# them as step outputs for the PR validation workflow, so every module a PR
+# them as step outputs for the PR validation and CI workflows, so every module a PR
 # touches gets validated -- not just those with .tf changes. A tests-, lint
 # config-, or docs-only change can break validation just as easily.
+#
+# With DETECT_ALL=true (the CI workflow on pushes to main) every module under
+# modules/ is selected instead and nothing is diffed: main's health is about
+# the whole repo, not about what one merge touched.
+#
 # Outputs:
 #   - matrix: JSON array of module names for the validation job's matrix
 #   - has-changes: true/false flag
@@ -20,15 +25,21 @@ source "$SCRIPT_DIR/common.sh"
 
 require_tool jq
 
-require_diff_base
-BASE="$(diff_base)"
-log_info "Detecting changed modules (diffing against $BASE)..."
+if [ "${DETECT_ALL:-false}" = "true" ]; then
+  log_info "Selecting every module under modules/ (DETECT_ALL=true)..."
+  # Only directories are modules; files like modules/.gitkeep are ignored.
+  MODULES=$(find modules -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort -u)
+else
+  require_diff_base
+  BASE="$(diff_base)"
+  log_info "Detecting changed modules (diffing against $BASE)..."
 
-# Find modules with any changed file. NF >= 3 keeps only paths inside a
-# module directory (modules/<name>/...), ignoring files sitting directly in
-# modules/ (e.g. modules/.gitkeep), which aren't a module. No `|| true`: a
-# failing git diff must fail the job, not read as "no changes".
-MODULES=$(git diff --name-only "$BASE"...HEAD -- 'modules/' | awk -F/ 'NF >= 3 { print $2 }' | sort -u)
+  # Find modules with any changed file. NF >= 3 keeps only paths inside a
+  # module directory (modules/<name>/...), ignoring files sitting directly in
+  # modules/ (e.g. modules/.gitkeep), which aren't a module. No `|| true`: a
+  # failing git diff must fail the job, not read as "no changes".
+  MODULES=$(git diff --name-only "$BASE"...HEAD -- 'modules/' | awk -F/ 'NF >= 3 { print $2 }' | sort -u)
+fi
 
 VALID_MODULES=()
 INTEGRATION_MODULES=()

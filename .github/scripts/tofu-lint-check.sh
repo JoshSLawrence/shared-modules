@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# TFLint check for a module. Used by the PR validation workflow.
+# TFLint check for a module. Used by the PR validation and CI workflows.
 #
 # Environment variables:
 #   WORKING_DIR      - module directory to check (required)

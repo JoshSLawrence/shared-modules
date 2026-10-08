@@ -3,7 +3,7 @@
 # Renders the OpenTofu cookiecutter template (from the cookiecutter/
 # submodule) into a throwaway module and runs the same checks PR validation
 # runs on real modules, so a submodule bump can't scaffold modules that fail
-# CI. Used by the PR validation workflow; safe to run locally.
+# CI. Used by the PR validation and CI workflows; safe to run locally.
 #
 # Every provider is enabled so each provider's generated config gets checked.
 # The template hardcodes its tool versions; only opentofu_version is taken
