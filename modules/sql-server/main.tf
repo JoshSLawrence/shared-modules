@@ -90,6 +90,12 @@ resource "azurerm_mssql_server_extended_auditing_policy" "this" {
   depends_on = [azurerm_monitor_diagnostic_setting.audit]
 }
 
+locals {
+  # null means "module default"; an explicit empty list means "none"
+  diag_log_categories    = try(var.diagnostic_settings.log_categories, null)
+  diag_metric_categories = try(var.diagnostic_settings.metric_categories, null) == null ? ["Basic", "InstanceAndAppAdvanced", "WorkloadManagement"] : var.diagnostic_settings.metric_categories
+}
+
 # Database logs and metrics. Server auditing is covered above; these are the
 # per-database categories (query statistics, errors, deadlocks, ...).
 resource "azurerm_monitor_diagnostic_setting" "database" {
@@ -99,24 +105,19 @@ resource "azurerm_monitor_diagnostic_setting" "database" {
   target_resource_id         = azurerm_mssql_database.this[each.key].id
   log_analytics_workspace_id = var.diagnostic_settings.log_analytics_workspace_id
 
+  # Without an explicit list, allLogs covers every log category and any added
+  # later
   dynamic "enabled_log" {
-    for_each = var.diagnostic_settings.log_categories == null ? [] : var.diagnostic_settings.log_categories
+    for_each = local.diag_log_categories == null ? [{ category = null, category_group = "allLogs" }] : [for c in toset(local.diag_log_categories) : { category = c, category_group = null }]
 
     content {
-      category = enabled_log.value
-    }
-  }
-
-  dynamic "enabled_log" {
-    for_each = var.diagnostic_settings.log_categories == null ? [1] : []
-
-    content {
-      category_group = "allLogs"
+      category       = enabled_log.value.category
+      category_group = enabled_log.value.category_group
     }
   }
 
   dynamic "enabled_metric" {
-    for_each = var.diagnostic_settings.metric_categories == null ? ["Basic", "InstanceAndAppAdvanced", "WorkloadManagement"] : var.diagnostic_settings.metric_categories
+    for_each = toset(local.diag_metric_categories)
 
     content {
       category = enabled_metric.value
