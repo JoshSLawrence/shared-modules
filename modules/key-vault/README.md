@@ -41,7 +41,8 @@ The vault is private and locked down unless you opt out:
 - **RBAC authorization only**; grant data access with `role_assignments`
   (e.g. `Key Vault Secrets User`). Access policies aren't supported.
 - **Purge protection on**, with 90 days of soft delete retention.
-- Optional `diagnostic_settings` (logs and metrics to Log Analytics) and
+- Optional `diagnostic_settings` (logs and metrics to Log Analytics, all
+  categories unless you list specific ones) and
   `lock` (an Azure management lock against deletion).
 
 Creating secrets, keys or certificates uses the vault's data plane: the
@@ -124,7 +125,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings) | Send the vault's logs (including audit events) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics. | <pre>object({<br/>    log_analytics_workspace_id = string<br/>    name                       = optional(string, "diag-log-analytics")<br/>  })</pre> | `null` | no |
+| <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings) | Send the vault's logs (including audit events) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics.<br/><br/>- `log_categories`: log categories to enable. `null` (the default)<br/>  enables the `allLogs` category group; `[]` enables no logs.<br/>- `metric_categories`: metric categories to enable. `null` (the default)<br/>  enables `AllMetrics`; `[]` enables no metrics.<br/><br/>At least one log or metric category must end up enabled. | <pre>object({<br/>    log_analytics_workspace_id = string<br/>    name                       = optional(string, "diag-log-analytics")<br/>    log_categories             = optional(list(string))<br/>    metric_categories          = optional(list(string))<br/>  })</pre> | `null` | no |
 | <a name="input_location"></a> [location](#input\_location) | Azure region to create the Key Vault in (e.g. `eastus`). | `string` | n/a | yes |
 | <a name="input_lock"></a> [lock](#input\_lock) | Management lock on the vault, protecting it from accidental deletion<br/>(`CanNotDelete`) or any change (`ReadOnly`). `name` defaults to<br/>`lock-<vault name>`. `null` (the default) creates no lock. | <pre>object({<br/>    kind  = string<br/>    name  = optional(string)<br/>    notes = optional(string)<br/>  })</pre> | `null` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name of the Key Vault (e.g. `kv-myapp-prod`). Must be globally unique. | `string` | n/a | yes |
