@@ -31,7 +31,6 @@ variable "entra_admin" {
     object_id = string
     tenant_id = optional(string)
   })
-  nullable    = false
   description = <<-EOT
     Entra ID administrator of the server. The server accepts Entra ID
     authentication only; SQL logins are always disabled.
@@ -42,6 +41,7 @@ variable "entra_admin" {
     - `tenant_id` - Entra ID tenant of the administrator. `null` (the
       default) uses the tenant of the identity running OpenTofu.
   EOT
+  nullable    = false
 
   validation {
     condition     = can(regex("^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$", var.entra_admin.object_id))
@@ -268,9 +268,9 @@ variable "lock" {
     (`CanNotDelete`) or any change (`ReadOnly`). `name` defaults to
     `lock-<server name>`. `null` (the default) creates no lock.
 
-    Azure refuses to delete role assignments and diagnostic settings under a
-    scope with a `CanNotDelete` lock, so revoking a grant or changing
-    diagnostics needs the lock lifted first.
+    A `CanNotDelete` lock also blocks deleting role assignments and diagnostic
+    settings under its scope, so revoking a grant or removing a diagnostic
+    setting needs the lock lifted first.
   EOT
   default     = null
 

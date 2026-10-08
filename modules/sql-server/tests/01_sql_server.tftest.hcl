@@ -14,7 +14,8 @@ mock_provider "azurerm" {
 
   mock_resource "azurerm_mssql_database" {
     defaults = {
-      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Sql/servers/sql-test-001/databases/db-mock"    }
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Sql/servers/sql-test-001/databases/db-mock"
+    }
   }
 }
 
