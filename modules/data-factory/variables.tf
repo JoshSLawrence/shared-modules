@@ -207,7 +207,9 @@ variable "diagnostic_settings" {
     metric_categories          = optional(list(string))
   })
   description = <<-EOT
-    Send the factory's logs (pipeline, activity and trigger runs, and more) and metrics to a Log Analytics workspace. `null` (the default) disables diagnostics.
+    Send the factory's logs (pipeline, activity and trigger runs, and more)
+    and metrics to a Log Analytics workspace. `null` (the default) disables
+    diagnostics.
 
     - `log_categories`: log categories to enable. `null` (the default)
       enables the `allLogs` category group; `[]` enables no logs.
@@ -240,6 +242,10 @@ variable "lock" {
 
     A `ReadOnly` lock also blocks publishing pipelines and other factory
     changes.
+
+    Azure refuses to delete role assignments and diagnostic settings under a
+    scope with a `CanNotDelete` lock, so revoking a grant or changing
+    diagnostics needs the lock lifted first.
   EOT
   default     = null
 

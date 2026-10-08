@@ -284,7 +284,6 @@ run "policy_managed_dns" {
   }
 }
 
-
 run "diagnostics_default_categories" {
   command = plan
 
