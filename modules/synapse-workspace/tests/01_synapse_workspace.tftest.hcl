@@ -606,3 +606,129 @@ run "storage_dns_management_can_be_overridden" {
   }
 }
 
+run "diagnostics_default_categories" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.this[0].enabled_log) == 1 && one(azurerm_monitor_diagnostic_setting.this[0].enabled_log).category_group == "allLogs"
+    error_message = "Workspace logs should default to the allLogs category group."
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.this[0].enabled_metric) == 0
+    error_message = "The workspace should send no metrics by default."
+  }
+
+  assert {
+    condition     = local.storage_diagnostic_settings.log_categories == null && local.storage_diagnostic_settings.metric_categories == null && local.storage_diagnostic_settings.name == "diag-log-analytics"
+    error_message = "The storage account should get the storage-account module's default categories."
+  }
+}
+
+run "diagnostics_custom_categories" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = ["SynapseRbacOperations", "IntegrationPipelineRuns"]
+      metric_categories          = ["AllMetrics"]
+      storage_log_categories     = ["StorageWrite"]
+      storage_metric_categories  = []
+    }
+  }
+
+  assert {
+    condition     = toset([for l in azurerm_monitor_diagnostic_setting.this[0].enabled_log : l.category]) == toset(["SynapseRbacOperations", "IntegrationPipelineRuns"]) && alltrue([for l in azurerm_monitor_diagnostic_setting.this[0].enabled_log : l.category_group == null])
+    error_message = "Exactly the requested workspace log categories should be enabled."
+  }
+
+  assert {
+    condition     = toset([for m in azurerm_monitor_diagnostic_setting.this[0].enabled_metric : m.category]) == toset(["AllMetrics"])
+    error_message = "The requested workspace metric categories should be enabled."
+  }
+
+  assert {
+    condition     = toset(local.storage_diagnostic_settings.log_categories) == toset(["StorageWrite"]) && length(local.storage_diagnostic_settings.metric_categories) == 0
+    error_message = "The storage categories should be passed to the storage-account module."
+  }
+}
+
+run "diagnostics_metrics_only" {
+  command = plan
+
+  variables {
+    diagnostic_settings = {
+      log_analytics_workspace_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-platform/providers/Microsoft.OperationalInsights/workspaces/log-test"
+      log_categories             = []
+      metric_categories          = ["AllMetrics"]
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_monitor_diagnostic_setting.this[0].enabled_log) == 0 && length(azurerm_monitor_diagnostic_setting.this[0].enabled_metric) == 1
+    error_message = "Only metrics should be enabled when logs are turned off."
+  }
+}
+
+run "azure_services_access_rule" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    azure_services_access_enabled = true
+  }
+
+  assert {
+    condition     = azurerm_synapse_firewall_rule.azure_services[0].name == "AllowAllWindowsAzureIps" && azurerm_synapse_firewall_rule.azure_services[0].start_ip_address == "0.0.0.0" && azurerm_synapse_firewall_rule.azure_services[0].end_ip_address == "0.0.0.0"
+    error_message = "Azure services access should add the AllowAllWindowsAzureIps rule."
+  }
+
+  assert {
+    condition     = length(azurerm_synapse_firewall_rule.allow_all) == 1
+    error_message = "The AllowAll rule should still be created for a public workspace."
+  }
+}
+
+run "azure_services_access_off_by_default" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+  }
+
+  assert {
+    condition     = length(azurerm_synapse_firewall_rule.azure_services) == 0
+    error_message = "The AllowAllWindowsAzureIps rule should be opt-in."
+  }
+}
+
+run "storage_role_assignments_are_accepted" {
+  command = plan
+
+  variables {
+    storage_account = {
+      name = "stsynwtest"
+      role_assignments = {
+        readers = {
+          role_definition_id_or_name = "Storage Blob Data Reader"
+          principal_id               = "00000000-0000-0000-0000-000000000009"
+          principal_type             = "Group"
+        }
+      }
+    }
+  }
+
+  assert {
+    # Planning through storage-account/v0.1.0 is what proves the passthrough:
+    # the module would reject an unknown or malformed role_assignments value.
+    condition     = length(module.storage_account) == 1
+    error_message = "Storage role assignments should be accepted and passed to the storage-account module."
+  }
+}

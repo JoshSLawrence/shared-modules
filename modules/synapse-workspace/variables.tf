@@ -44,6 +44,15 @@ variable "storage_account" {
       resource_group_name    = optional(string)
       location               = optional(string)
     })), {})
+    role_assignments = optional(map(object({
+      role_definition_id_or_name       = string
+      principal_id                     = string
+      principal_type                   = optional(string)
+      description                      = optional(string)
+      condition                        = optional(string)
+      condition_version                = optional(string)
+      skip_service_principal_aad_check = optional(bool, false)
+    })), {})
   })
   description = <<-EOT
     Create the workspace's default ADLS Gen2 storage account with the
@@ -63,6 +72,10 @@ variable "storage_account" {
     - `private_endpoints`, `account_replication_type`,
       `infrastructure_encryption_enabled` - passed to the storage-account
       module; see its README.
+    - `role_assignments` - extra Azure RBAC role assignments on the storage
+      account, keyed by an arbitrary static name; the same shape as the
+      storage-account module's `role_assignments`. The workspace identity's
+      `Storage Blob Data Contributor` is always granted separately.
 
     Blob versioning and soft delete are always disabled on this account:
     Synapse doesn't support them on its default storage.
@@ -94,6 +107,11 @@ variable "storage_account" {
       alltrue([for pe in values(try(var.storage_account.private_endpoints, {})) : length(pe.private_dns_zone_ids) == 0])
     )
     error_message = "storage_account.private_endpoints[*].private_dns_zone_ids must be empty when the storage account's DNS zone groups are managed outside this module (private_endpoints_manage_dns_zone_group is false)."
+  }
+
+  validation {
+    condition     = var.storage_account == null || alltrue([for ra in values(try(var.storage_account.role_assignments, {})) : contains(["User", "Group", "ServicePrincipal"], coalesce(ra.principal_type, "User"))])
+    error_message = "storage_account.role_assignments[*].principal_type must be \"User\", \"Group\" or \"ServicePrincipal\"."
   }
 }
 
@@ -144,6 +162,30 @@ variable "public_network_access_enabled" {
       everything even with public access on.
   EOT
   default     = false
+}
+
+variable "azure_services_access_enabled" {
+  type        = bool
+  description = <<-EOT
+    Add the `AllowAllWindowsAzureIps` firewall rule (0.0.0.0-0.0.0.0), which
+    lets Azure services reach the workspace's public endpoints. Only valid
+    with `public_network_access_enabled = true`; a private workspace is
+    reached through `private_endpoints` instead. Default `false`.
+
+    This is separate from `public_network_access_enabled`'s `AllowAll` rule
+    (an IP range): it is the portal's "Allow Azure services and resources to
+    access this workspace" setting, which also covers traffic the IP rule
+    doesn't, such as Azure services reaching the workspace from Azure
+    networks via service endpoints, and features and portal checks that look
+    for this rule.
+  EOT
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.azure_services_access_enabled || var.public_network_access_enabled
+    error_message = "azure_services_access_enabled requires public_network_access_enabled = true: the AllowAllWindowsAzureIps firewall rule only applies to the public endpoints."
+  }
 }
 
 variable "private_endpoints" {
@@ -560,9 +602,47 @@ variable "diagnostic_settings" {
   type = object({
     log_analytics_workspace_id = string
     name                       = optional(string, "diag-log-analytics")
+    log_categories             = optional(list(string))
+    metric_categories          = optional(list(string))
+    storage_log_categories     = optional(list(string))
+    storage_metric_categories  = optional(list(string))
   })
-  description = "Send the workspace's logs (and, for a storage account this module creates, its storage logs and metrics) to a Log Analytics workspace. `null` (the default) disables diagnostics."
+  description = <<-EOT
+    Send the workspace's logs (and, for a storage account this module
+    creates, its storage logs and metrics) to a Log Analytics workspace.
+    `null` (the default) disables diagnostics.
+
+    - `log_categories`: workspace log categories to enable. `null` (the
+      default) enables the `allLogs` category group; `[]` enables no logs.
+    - `metric_categories`: workspace metric categories to enable. `null` or
+      `[]` (the default) enables none; the workspace sets no metrics unless
+      asked.
+    - `storage_log_categories`, `storage_metric_categories`: the same for the
+      storage account this module creates (passed as the storage-account
+      module's `log_categories` and `metric_categories`). `null` (the
+      default) uses that module's defaults; `[]` enables none. Ignored with
+      `existing_storage`.
+
+    The workspace's setting must end up with at least one log or metric
+    category enabled.
+  EOT
   default     = null
+
+  validation {
+    condition = var.diagnostic_settings == null || (
+      try(length(var.diagnostic_settings.log_categories), 1) +
+      try(length(var.diagnostic_settings.metric_categories), 0) > 0
+    )
+    error_message = "diagnostic_settings must enable at least one workspace log or metric category: leave log_categories null for the allLogs default or list at least one category, or set diagnostic_settings to null."
+  }
+
+  validation {
+    condition = var.diagnostic_settings == null || (
+      try(length(var.diagnostic_settings.storage_log_categories), 1) +
+      try(length(var.diagnostic_settings.storage_metric_categories), 1) > 0
+    )
+    error_message = "diagnostic_settings must enable at least one storage log or metric category: leave storage_log_categories and/or storage_metric_categories null for the storage-account defaults, or list at least one category."
+  }
 }
 
 variable "lock" {
@@ -576,6 +656,10 @@ variable "lock" {
     creates, protecting them from accidental deletion (`CanNotDelete`) or any
     change (`ReadOnly`). `name` defaults to `lock-<resource name>`. `null`
     (the default) creates no lock.
+
+    A `CanNotDelete` lock also blocks deleting role assignments and diagnostic
+    settings under its scope, so revoking a grant or removing a diagnostic
+    setting needs the lock lifted first.
   EOT
   default     = null
 
