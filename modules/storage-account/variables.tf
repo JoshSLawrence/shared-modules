@@ -140,11 +140,25 @@ variable "containers" {
   type = map(object({
     name     = optional(string)
     metadata = optional(map(string), {})
+    role_assignments = optional(map(object({
+      role_definition_id_or_name       = string
+      principal_id                     = string
+      principal_type                   = optional(string)
+      description                      = optional(string)
+      condition                        = optional(string)
+      condition_version                = optional(string)
+      skip_service_principal_aad_check = optional(bool, false)
+    })), {})
   }))
   description = <<-EOT
     Private blob containers (Data Lake file systems when `is_hns_enabled` is
     `true`) to create, keyed by an arbitrary static name. `name` defaults to
     the key.
+
+    `role_assignments` grants Azure RBAC roles scoped to the container alone
+    (same shape as the account-level `role_assignments`), e.g. Storage Blob
+    Data Reader on one container, so a principal sees that container's data
+    and no other's.
 
     Containers are created through Azure Resource Manager, not the storage
     data plane, so OpenTofu doesn't need network access to a private account
@@ -159,6 +173,11 @@ variable "containers" {
       can(regex("^[a-z0-9]([a-z0-9]|-[a-z0-9]){2,62}$", coalesce(c.name, k)))
     ])
     error_message = "Container names must be 3-63 lowercase letters, digits and single hyphens, starting and ending with a letter or digit."
+  }
+
+  validation {
+    condition     = alltrue(flatten([for c in values(var.containers) : [for ra in values(c.role_assignments) : contains(["User", "Group", "ServicePrincipal"], coalesce(ra.principal_type, "User"))]]))
+    error_message = "containers[*].role_assignments[*].principal_type must be \"User\", \"Group\" or \"ServicePrincipal\"."
   }
 }
 

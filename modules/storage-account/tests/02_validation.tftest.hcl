@@ -197,3 +197,23 @@ run "diagnostics_with_nothing_enabled" {
 
   expect_failures = [var.diagnostic_settings]
 }
+
+run "container_role_assignment_principal_type_is_validated" {
+  command = plan
+
+  variables {
+    containers = {
+      reports = {
+        role_assignments = {
+          bad = {
+            role_definition_id_or_name = "Storage Blob Data Reader"
+            principal_id               = "00000000-0000-0000-0000-0000000000aa"
+            principal_type             = "Robot"
+          }
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.containers]
+}

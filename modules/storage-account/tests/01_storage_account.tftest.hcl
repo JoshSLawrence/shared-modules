@@ -5,6 +5,14 @@ mock_provider "azurerm" {
       primary_dfs_endpoint = "https://sttest001.dfs.core.windows.net/"
     }
   }
+
+  # Containers created with storage_account_id get Resource Manager IDs,
+  # which role assignments need as their scope
+  mock_resource "azurerm_storage_container" {
+    defaults = {
+      id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Storage/storageAccounts/sttest001/blobServices/default/containers/mock"
+    }
+  }
 }
 
 variables {
@@ -463,5 +471,30 @@ run "diagnostics_metrics_only" {
   assert {
     condition     = length(azurerm_monitor_diagnostic_setting.account) == 1 && length(azurerm_monitor_diagnostic_setting.blob) == 1 && length(azurerm_monitor_diagnostic_setting.blob[0].enabled_log) == 0
     error_message = "Without logs, both settings should carry only metrics."
+  }
+}
+
+run "container_role_assignments" {
+  command = plan
+
+  variables {
+    is_hns_enabled = true
+    containers = {
+      reports = {
+        role_assignments = {
+          analysts = {
+            role_definition_id_or_name = "Storage Blob Data Reader"
+            principal_id               = "00000000-0000-0000-0000-0000000000aa"
+            principal_type             = "Group"
+          }
+        }
+      }
+      raw = {}
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_role_assignment.containers) == 1 && azurerm_role_assignment.containers["reports/analysts"].role_definition_name == "Storage Blob Data Reader" && azurerm_role_assignment.containers["reports/analysts"].principal_type == "Group"
+    error_message = "A container role assignment should be created per container grant, keyed \"<container>/<grant>\"."
   }
 }
