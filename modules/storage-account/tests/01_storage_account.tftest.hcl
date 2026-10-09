@@ -45,7 +45,7 @@ run "defaults_are_private_and_entra_only" {
   }
 
   assert {
-    condition     = azurerm_storage_account.this.network_rules[0].default_action == "Deny" && azurerm_storage_account.this.network_rules[0].bypass == toset(["AzureServices"])
+    condition     = length(azurerm_storage_account.this.network_rules) == 1 && azurerm_storage_account.this.network_rules[0].default_action == "Deny" && azurerm_storage_account.this.network_rules[0].bypass == toset(["AzureServices"])
     error_message = "The firewall should deny by default and let trusted Azure services bypass it."
   }
 
@@ -78,8 +78,8 @@ run "public_access_is_open_to_all_networks" {
   }
 
   assert {
-    condition     = azurerm_storage_account.this.network_rules[0].default_action == "Allow"
-    error_message = "Public accounts should accept traffic from every network."
+    condition     = azurerm_storage_account.this.network_rules[0].default_action == "Allow" && azurerm_storage_account.this.network_rules[0].bypass == toset(["AzureServices", "Logging", "Metrics"])
+    error_message = "Public accounts should accept traffic from every network, with a bypass that azurerm doesn't read back as Azure's defaults (no block)."
   }
 }
 
@@ -500,5 +500,41 @@ run "container_role_assignments" {
   assert {
     condition     = azurerm_role_assignment.containers["reports/analysts"].scope == azurerm_storage_container.this["reports"].id && endswith(azurerm_role_assignment.containers["reports/analysts"].scope, "/blobServices/default/containers/mock")
     error_message = "A container role assignment should be scoped to the container's ID, not the account's."
+  }
+}
+
+# Toggle runs go last: their applies leave state behind for later runs
+
+run "toggle_apply_private" {
+  command = apply
+}
+
+run "toggle_private_to_public_allows" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+  }
+
+  assert {
+    condition     = azurerm_storage_account.this.public_network_access == "Enabled" && azurerm_storage_account.this.network_rules[0].default_action == "Allow" && azurerm_storage_account.this.network_rules[0].bypass == toset(["AzureServices", "Logging", "Metrics"])
+    error_message = "Switching a private account to public should plan Allow (the block stays, so the switch is applied)."
+  }
+}
+
+run "toggle_apply_public" {
+  command = apply
+
+  variables {
+    public_network_access_enabled = true
+  }
+}
+
+run "toggle_public_to_private_denies" {
+  command = plan
+
+  assert {
+    condition     = azurerm_storage_account.this.public_network_access == "Disabled" && azurerm_storage_account.this.network_rules[0].default_action == "Deny" && azurerm_storage_account.this.network_rules[0].bypass == toset(["AzureServices"])
+    error_message = "Switching a public account to private should plan Deny with only AzureServices bypassing."
   }
 }

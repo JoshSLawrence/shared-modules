@@ -37,7 +37,9 @@ The account is private and locked down unless you opt out:
   endpoints; reach the account through `private_endpoints` (`blob`, `dfs`,
   `file`, `queue`, `table`, `web`). Set `public_network_access_enabled = true`
   to open it to every network instead (still behind Entra ID). There's no
-  IP-restricted middle state.
+  IP-restricted middle state. Public mode also lets `Logging` and `Metrics`
+  bypass the (allow-all) firewall: that grants nothing extra, but keeps
+  azurerm from planning a network rules change on every run.
 - **Entra ID only**: Shared Key (account key and SAS) auth is disabled.
 - TLS 1.2, HTTPS only, no anonymous blob access, infrastructure
   encryption, and no cross-tenant replication.
