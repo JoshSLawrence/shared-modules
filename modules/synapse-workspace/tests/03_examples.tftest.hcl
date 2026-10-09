@@ -90,7 +90,8 @@ run "existing_storage_example_plans" {
   }
 
   variables {
-    synapse_admin_group_object_id = "00000000-0000-0000-0000-000000000008"
+    synapse_admin_group_object_id     = "00000000-0000-0000-0000-000000000008"
+    synapse_developer_group_object_id = "00000000-0000-0000-0000-000000000011"
   }
 
   assert {

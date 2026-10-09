@@ -95,6 +95,19 @@ module "synapse_workspace" {
     }
   }
 
+  # A developers group that builds and debugs artifacts: Credential User lets
+  # it run pipelines with linked services that use the workspace identity,
+  # and Reader makes Synapse Studio list the workspace
+  access = {
+    developers = {
+      principal_id    = var.synapse_developer_group_object_id
+      principal_type  = "Group"
+      synapse_role    = "Synapse Contributor"
+      credential_user = true
+      workspace_role  = "Reader"
+    }
+  }
+
   tags = {
     purpose = "synapse-workspace module example"
   }

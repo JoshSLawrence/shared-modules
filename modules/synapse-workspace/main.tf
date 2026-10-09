@@ -55,8 +55,44 @@ resource "azurerm_management_lock" "this" {
   ]
 }
 
+# var.access, expanded into the explicit assignment maps' shapes. Keys: the
+# access key, and <key>_credential_user for Synapse Credential User.
+locals {
+  access_synapse_role_assignments = merge(
+    {
+      for k, a in var.access : k => {
+        role_name      = a.synapse_role
+        principal_id   = a.principal_id
+        principal_type = a.principal_type
+      } if a.synapse_role != null
+    },
+    {
+      for k, a in var.access : "${k}_credential_user" => {
+        role_name      = "Synapse Credential User"
+        principal_id   = a.principal_id
+        principal_type = a.principal_type
+      } if a.credential_user
+    },
+  )
+
+  access_role_assignments = {
+    for k, a in var.access : k => {
+      role_definition_id_or_name       = a.workspace_role
+      principal_id                     = a.principal_id
+      principal_type                   = a.principal_type
+      description                      = null
+      condition                        = null
+      condition_version                = null
+      skip_service_principal_aad_check = false
+    } if a.workspace_role != null
+  }
+
+  role_assignments         = merge(var.role_assignments, local.access_role_assignments)
+  synapse_role_assignments = merge(var.synapse_role_assignments, local.access_synapse_role_assignments)
+}
+
 resource "azurerm_role_assignment" "this" {
-  for_each = var.role_assignments
+  for_each = local.role_assignments
 
   scope                            = azurerm_synapse_workspace.this.id
   principal_id                     = each.value.principal_id
@@ -70,7 +106,7 @@ resource "azurerm_role_assignment" "this" {
 }
 
 resource "azurerm_synapse_role_assignment" "this" {
-  for_each = var.synapse_role_assignments
+  for_each = local.synapse_role_assignments
 
   synapse_workspace_id = azurerm_synapse_workspace.this.id
   role_name            = each.value.role_name
