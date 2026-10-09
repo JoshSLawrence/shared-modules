@@ -7,6 +7,12 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-10-09
+
+### Fixed
+
+- Public accounts no longer plan a `network_rules` change on every run. azurerm reads `Allow` with only the `AzureServices` bypass back as no block, so public mode now also lets `Logging` and `Metrics` bypass the firewall. Under `Allow` that grants nothing extra. Upgrading applies a one-time in-place update to the network rules of every public account (no replacement); private accounts are unchanged (`Deny`, `AzureServices` only).
+
 ## [v0.1.0] - 2026-10-08
 
 ### Added

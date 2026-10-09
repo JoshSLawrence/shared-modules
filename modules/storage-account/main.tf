@@ -35,10 +35,13 @@ resource "azurerm_storage_account" "this" {
   # Two states only: private (endpoint disabled; the rules are moot) or
   # public to every network. Deny stays the default for the private case so
   # the account never falls back to open if the endpoint is re-enabled
-  # outside OpenTofu.
+  # outside OpenTofu. Public mode also lets Logging and Metrics bypass:
+  # under Allow that grants nothing extra, but azurerm reads Allow with
+  # AzureServices alone back as no block, which would plan a change on every
+  # run. The block stays in both modes so switching either way is applied.
   network_rules {
     default_action = var.public_network_access_enabled ? "Allow" : "Deny"
-    bypass         = ["AzureServices"]
+    bypass         = var.public_network_access_enabled ? ["AzureServices", "Logging", "Metrics"] : ["AzureServices"]
   }
 
   blob_properties {
