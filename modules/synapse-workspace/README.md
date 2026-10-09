@@ -126,6 +126,11 @@ action off. Linked services stay in Git; they name their targets (e.g. a
 `dfs` URL), and Synapse routes them through the matching approved managed
 private endpoint.
 
+The module never sets a managed private endpoint's
+`fully_qualified_domain_names` and ignores whatever Azure reports for it
+(it fills them in for some targets, e.g. Key Vault), so the endpoints aren't
+replaced over it.
+
 ## Example
 
 ```hcl
@@ -178,7 +183,7 @@ See [examples/](./examples) for complete root modules.
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_storage_account"></a> [storage\_account](#module\_storage\_account) | git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account | storage-account/v0.1.0 |
+| <a name="module_storage_account"></a> [storage\_account](#module\_storage\_account) | git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account | storage-account/v0.1.1 |
 
 ## Resources
 
