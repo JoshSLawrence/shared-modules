@@ -75,7 +75,7 @@ The workspace is private and locked down unless you opt out:
   administrator password: pass one in `sql_administrator_password` or let
   the module generate one. It's exposed as a sensitive output and can be
   stored in Key Vault with `sql_administrator_password_secret`.
-- Optional `entra_admin`, `spark_pools`, `github_repo`,
+- Optional `entra_admin`, `spark_pools`, `github_repo`, `access`,
   `synapse_role_assignments`, `role_assignments`, `diagnostic_settings`
   (with per-category control for the workspace and its storage account)
   and `lock` (an Azure management lock, also applied to a storage account
@@ -84,7 +84,8 @@ The workspace is private and locked down unless you opt out:
 ## Data plane access
 
 Most of the workspace is managed through Azure Resource Manager, but
-`synapse_role_assignments`, `managed_private_endpoints` and
+`synapse_role_assignments` (and `access` entries with a `synapse_role` or
+`credential_user`), `managed_private_endpoints` and
 `storage_managed_private_endpoints` use the workspace's dev endpoint, and
 `sql_administrator_password_secret` the Key Vault data plane. For those,
 the machine running OpenTofu needs network access (a public workspace, or
@@ -93,6 +94,39 @@ line of sight to the `Dev` private endpoint) and, for the vault, a role like
 
 Managed private endpoints are created pending approval; approve them on the
 target resource's private endpoint connections.
+
+## Access
+
+`access` grants the usual role combinations per principal, keyed by a static
+name, without spelling out each role assignment:
+
+```hcl
+access = {
+  admins = {
+    principal_id   = "<group object ID>"
+    principal_type = "Group"
+    synapse_role   = "Synapse Administrator"
+    workspace_role = "Reader"
+  }
+  developers = {
+    principal_id    = "<group object ID>"
+    principal_type  = "Group"
+    synapse_role    = "Synapse Contributor"
+    credential_user = true
+  }
+}
+```
+
+Each entry becomes up to three role assignments: the Synapse role, keyed
+`<key>`; `Synapse Credential User`, keyed `<key>_credential_user`; and the
+Azure role on the workspace, keyed `<key>`. They join
+`synapse_role_assignments` and `role_assignments`, whose keys must not
+collide with them, so moving a principal from those maps to `access` under
+the same key keeps its role assignments, and changing an entry's
+`synapse_role` replaces only that one assignment. Use the maps directly for
+anything else (e.g. two Synapse roles for one principal, or role assignment
+conditions), and `storage_account.role_assignments` for roles on the
+default storage.
 
 ## Private DNS
 
@@ -211,6 +245,7 @@ See [examples/](./examples) for complete root modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_access"></a> [access](#input\_access) | Access to grant, per principal, keyed by an arbitrary static name: a<br/>shorthand for the usual combinations of Synapse RBAC roles and an Azure<br/>RBAC role on the workspace, which the module adds to<br/>`synapse_role_assignments` and `role_assignments`. For example, a group<br/>that develops and debugs Synapse artifacts, and an administrators group:<pre>hcl<br/>access = {<br/>  developers = {<br/>    principal_id    = "<group object ID>"<br/>    principal_type  = "Group"<br/>    synapse_role    = "Synapse Contributor"<br/>    credential_user = true<br/>  }<br/>  admins = {<br/>    principal_id   = "<group object ID>"<br/>    principal_type = "Group"<br/>    synapse_role   = "Synapse Administrator"<br/>    workspace_role = "Reader"<br/>  }<br/>}</pre>- `principal_type` - `User`, `Group` or `ServicePrincipal`, as in the<br/>  role assignment maps.<br/>- `synapse_role` - a Synapse RBAC role, e.g. `Synapse Administrator`,<br/>  `Synapse Contributor` or `Synapse Artifact User`. Its Synapse role<br/>  assignment is keyed `<key>`, so changing the role replaces that one<br/>  assignment.<br/>- `credential_user` - also grant `Synapse Credential User`, keyed<br/>  `<key>_credential_user`. Synapse Contributor alone can't run pipelines<br/>  or debug linked services that use the workspace identity.<br/>- `workspace_role` - an Azure RBAC role on the workspace (a built-in role<br/>  name or a role definition ID starting with `/`), keyed `<key>`.<br/>  `Reader` makes Synapse Studio list the workspace for a principal that<br/>  can't already read it through a wider scope.<br/><br/>Each entry must grant at least one role. The derived keys share the<br/>explicit maps' keys, so they must not collide with them. Synapse roles<br/>are granted through the data plane, as for `synapse_role_assignments`. | <pre>map(object({<br/>    principal_id    = string<br/>    principal_type  = optional(string)<br/>    synapse_role    = optional(string)<br/>    credential_user = optional(bool, false)<br/>    workspace_role  = optional(string)<br/>  }))</pre> | `{}` | no |
 | <a name="input_azure_services_access_enabled"></a> [azure\_services\_access\_enabled](#input\_azure\_services\_access\_enabled) | Add the `AllowAllWindowsAzureIps` firewall rule (0.0.0.0-0.0.0.0), which<br/>lets Azure services reach the workspace's public endpoints. Only valid<br/>with `public_network_access_enabled = true`; a private workspace is<br/>reached through `private_endpoints` instead. Default `false`.<br/><br/>This is separate from `public_network_access_enabled`'s `AllowAll` rule<br/>(an IP range): it is the portal's "Allow Azure services and resources to<br/>access this workspace" setting, which also covers traffic the IP rule<br/>doesn't, such as Azure services reaching the workspace from Azure<br/>networks via service endpoints, and features and portal checks that look<br/>for this rule. | `bool` | `false` | no |
 | <a name="input_azuread_authentication_only"></a> [azuread\_authentication\_only](#input\_azuread\_authentication\_only) | Allow only Entra ID authentication to the workspace's SQL endpoints<br/>(`true`, the default), disabling the SQL administrator login. Some<br/>deployment tooling still needs SQL auth; set `false` if so. | `bool` | `true` | no |
 | <a name="input_data_exfiltration_protection_enabled"></a> [data\_exfiltration\_protection\_enabled](#input\_data\_exfiltration\_protection\_enabled) | Only allow outbound connections from the managed virtual network through<br/>approved managed private endpoints (to tenants in<br/>`linking_allowed_for_aad_tenant_ids`). Can't be changed after creation. | `bool` | `false` | no |

@@ -751,3 +751,106 @@ run "managed_private_endpoints_leave_fqdns_to_azure" {
     error_message = "The module should never set fully_qualified_domain_names: Azure fills them in for some targets (e.g. Key Vault)."
   }
 }
+
+run "access_expands_into_role_assignments" {
+  command = plan
+
+  variables {
+    access = {
+      admins = {
+        principal_id   = "00000000-0000-0000-0000-000000000010"
+        principal_type = "Group"
+        synapse_role   = "Synapse Administrator"
+        workspace_role = "Reader"
+      }
+      developers = {
+        principal_id    = "00000000-0000-0000-0000-000000000011"
+        principal_type  = "Group"
+        synapse_role    = "Synapse Contributor"
+        credential_user = true
+      }
+      auditor = {
+        principal_id   = "00000000-0000-0000-0000-000000000012"
+        principal_type = "ServicePrincipal"
+        synapse_role   = "Synapse User"
+      }
+    }
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_synapse_role_assignment.this)) == toset(["admins", "developers", "developers_credential_user", "auditor"])
+    error_message = "Each synapse_role should be keyed by its access key, and credential_user by <key>_credential_user."
+  }
+
+  assert {
+    condition = (
+      azurerm_synapse_role_assignment.this["admins"].role_name == "Synapse Administrator" &&
+      azurerm_synapse_role_assignment.this["developers"].role_name == "Synapse Contributor" &&
+      azurerm_synapse_role_assignment.this["developers_credential_user"].role_name == "Synapse Credential User" &&
+      azurerm_synapse_role_assignment.this["developers_credential_user"].principal_id == "00000000-0000-0000-0000-000000000011" &&
+      azurerm_synapse_role_assignment.this["developers_credential_user"].principal_type == "Group" &&
+      azurerm_synapse_role_assignment.this["auditor"].principal_type == "ServicePrincipal"
+    )
+    error_message = "access should grant each Synapse role to its principal, with its principal_type."
+  }
+
+  assert {
+    condition     = keys(azurerm_role_assignment.this) == ["admins"] && azurerm_role_assignment.this["admins"].role_definition_name == "Reader" && azurerm_role_assignment.this["admins"].principal_type == "Group"
+    error_message = "workspace_role should grant its role on the workspace, keyed by the access key, and only where set."
+  }
+}
+
+run "access_merges_with_explicit_assignments" {
+  command = plan
+
+  variables {
+    synapse_role_assignments = {
+      admins = {
+        role_name    = "Synapse Administrator"
+        principal_id = "00000000-0000-0000-0000-000000000008"
+      }
+    }
+    role_assignments = {
+      readers = {
+        role_definition_id_or_name = "Reader"
+        principal_id               = "00000000-0000-0000-0000-000000000007"
+      }
+    }
+    access = {
+      developers = {
+        principal_id    = "00000000-0000-0000-0000-000000000011"
+        synapse_role    = "Synapse Contributor"
+        credential_user = true
+        workspace_role  = "Reader"
+      }
+    }
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_synapse_role_assignment.this)) == toset(["admins", "developers", "developers_credential_user"])
+    error_message = "access should add to synapse_role_assignments, not replace them."
+  }
+
+  assert {
+    condition     = toset(keys(azurerm_role_assignment.this)) == toset(["readers", "developers"])
+    error_message = "access should add to role_assignments, not replace them."
+  }
+}
+
+run "credential_user_alone" {
+  command = plan
+
+  variables {
+    access = {
+      runners = {
+        principal_id    = "00000000-0000-0000-0000-000000000013"
+        credential_user = true
+      }
+    }
+  }
+
+  assert {
+    condition     = keys(azurerm_synapse_role_assignment.this) == ["runners_credential_user"] && length(azurerm_role_assignment.this) == 0
+    error_message = "credential_user alone should grant only Synapse Credential User."
+  }
+}

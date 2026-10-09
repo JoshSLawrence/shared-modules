@@ -540,6 +540,102 @@ variable "identity_ids" {
 
 # --- Access, protection and monitoring ------------------------------------------
 
+variable "access" {
+  type = map(object({
+    principal_id    = string
+    principal_type  = optional(string)
+    synapse_role    = optional(string)
+    credential_user = optional(bool, false)
+    workspace_role  = optional(string)
+  }))
+  description = <<-EOT
+    Access to grant, per principal, keyed by an arbitrary static name: a
+    shorthand for the usual combinations of Synapse RBAC roles and an Azure
+    RBAC role on the workspace, which the module adds to
+    `synapse_role_assignments` and `role_assignments`. For example, a group
+    that develops and debugs Synapse artifacts, and an administrators group:
+
+    ```hcl
+    access = {
+      developers = {
+        principal_id    = "<group object ID>"
+        principal_type  = "Group"
+        synapse_role    = "Synapse Contributor"
+        credential_user = true
+      }
+      admins = {
+        principal_id   = "<group object ID>"
+        principal_type = "Group"
+        synapse_role   = "Synapse Administrator"
+        workspace_role = "Reader"
+      }
+    }
+    ```
+
+    - `principal_type` - `User`, `Group` or `ServicePrincipal`, as in the
+      role assignment maps.
+    - `synapse_role` - a Synapse RBAC role, e.g. `Synapse Administrator`,
+      `Synapse Contributor` or `Synapse Artifact User`. Its Synapse role
+      assignment is keyed `<key>`, so changing the role replaces that one
+      assignment.
+    - `credential_user` - also grant `Synapse Credential User`, keyed
+      `<key>_credential_user`. Synapse Contributor alone can't run pipelines
+      or debug linked services that use the workspace identity.
+    - `workspace_role` - an Azure RBAC role on the workspace (a built-in role
+      name or a role definition ID starting with `/`), keyed `<key>`.
+      `Reader` makes Synapse Studio list the workspace for a principal that
+      can't already read it through a wider scope.
+
+    Each entry must grant at least one role. The derived keys share the
+    explicit maps' keys, so they must not collide with them. Synapse roles
+    are granted through the data plane, as for `synapse_role_assignments`.
+  EOT
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for a in values(var.access) : contains(["User", "Group", "ServicePrincipal"], coalesce(a.principal_type, "User"))])
+    error_message = "access[*].principal_type must be \"User\", \"Group\" or \"ServicePrincipal\"."
+  }
+
+  validation {
+    condition     = alltrue([for a in values(var.access) : a.synapse_role != null || a.credential_user || a.workspace_role != null])
+    error_message = "Each access entry must grant something: set synapse_role, credential_user and/or workspace_role."
+  }
+
+  validation {
+    condition     = alltrue([for a in values(var.access) : !(a.credential_user && a.synapse_role == "Synapse Credential User")])
+    error_message = "access[*].credential_user already grants Synapse Credential User; set synapse_role to another role or leave it null."
+  }
+
+  # The derived keys go into the same for_each maps as the explicit
+  # assignments; a clash would silently drop one of the two
+  validation {
+    condition = length(setintersection(
+      toset([for k, a in var.access : k if a.synapse_role != null]),
+      toset([for k, a in var.access : "${k}_credential_user" if a.credential_user]),
+    )) == 0
+    error_message = "An access key equals another entry's <key>_credential_user; rename one of them."
+  }
+
+  validation {
+    condition = (
+      length(setintersection(
+        toset(concat(
+          [for k, a in var.access : k if a.synapse_role != null],
+          [for k, a in var.access : "${k}_credential_user" if a.credential_user],
+        )),
+        toset(keys(var.synapse_role_assignments)),
+      )) == 0 &&
+      length(setintersection(
+        toset([for k, a in var.access : k if a.workspace_role != null]),
+        toset(keys(var.role_assignments)),
+      )) == 0
+    )
+    error_message = "access keys (and <key>_credential_user) must not also be keys of synapse_role_assignments or role_assignments."
+  }
+}
+
 variable "synapse_role_assignments" {
   type = map(object({
     role_name      = string

@@ -7,6 +7,13 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.0] - 2026-10-09
+
+### Added
+
+- `access` to grant per-principal role bundles: a Synapse RBAC role (`synapse_role`), `Synapse Credential User` (`credential_user`) and an Azure RBAC role on the workspace (`workspace_role`). They are added to `synapse_role_assignments` and `role_assignments`, keyed `<key>` and `<key>_credential_user`, so a principal moved from those maps under the same key keeps its role assignments
+- Validation rejecting `access` entries that grant nothing, grant Synapse Credential User twice or use an invalid `principal_type`, and keys that collide with each other or with the explicit role assignment maps
+
 ## [v0.1.1] - 2026-10-09
 
 ### Fixed

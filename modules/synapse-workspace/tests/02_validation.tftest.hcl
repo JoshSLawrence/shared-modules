@@ -483,3 +483,110 @@ run "storage_role_assignment_principal_type_is_validated" {
 
   expect_failures = [var.storage_account]
 }
+
+run "access_principal_type_is_validated" {
+  command = plan
+
+  variables {
+    access = {
+      bad = {
+        principal_id   = "00000000-0000-0000-0000-000000000010"
+        principal_type = "Application"
+        synapse_role   = "Synapse User"
+      }
+    }
+  }
+
+  expect_failures = [var.access]
+}
+
+run "access_entry_must_grant_something" {
+  command = plan
+
+  variables {
+    access = {
+      empty = {
+        principal_id = "00000000-0000-0000-0000-000000000010"
+      }
+    }
+  }
+
+  expect_failures = [var.access]
+}
+
+run "access_credential_user_twice" {
+  command = plan
+
+  variables {
+    access = {
+      twice = {
+        principal_id    = "00000000-0000-0000-0000-000000000010"
+        synapse_role    = "Synapse Credential User"
+        credential_user = true
+      }
+    }
+  }
+
+  expect_failures = [var.access]
+}
+
+run "access_key_clashes_with_its_credential_user_key" {
+  command = plan
+
+  variables {
+    access = {
+      a = {
+        principal_id    = "00000000-0000-0000-0000-000000000010"
+        credential_user = true
+      }
+      a_credential_user = {
+        principal_id = "00000000-0000-0000-0000-000000000011"
+        synapse_role = "Synapse User"
+      }
+    }
+  }
+
+  expect_failures = [var.access]
+}
+
+run "access_key_clashes_with_synapse_role_assignments" {
+  command = plan
+
+  variables {
+    synapse_role_assignments = {
+      developers_credential_user = {
+        role_name    = "Synapse User"
+        principal_id = "00000000-0000-0000-0000-000000000008"
+      }
+    }
+    access = {
+      developers = {
+        principal_id    = "00000000-0000-0000-0000-000000000010"
+        credential_user = true
+      }
+    }
+  }
+
+  expect_failures = [var.access]
+}
+
+run "access_key_clashes_with_role_assignments" {
+  command = plan
+
+  variables {
+    role_assignments = {
+      developers = {
+        role_definition_id_or_name = "Reader"
+        principal_id               = "00000000-0000-0000-0000-000000000007"
+      }
+    }
+    access = {
+      developers = {
+        principal_id   = "00000000-0000-0000-0000-000000000010"
+        workspace_role = "Reader"
+      }
+    }
+  }
+
+  expect_failures = [var.access]
+}
