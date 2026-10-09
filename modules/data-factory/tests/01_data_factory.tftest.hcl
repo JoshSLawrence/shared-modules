@@ -146,8 +146,8 @@ run "github_configuration_and_user_assigned_identity" {
 
   variables {
     github_configuration = {
-      account_name    = "psu-oeo"
-      repository_name = "crmdataexport"
+      account_name    = "contoso"
+      repository_name = "analytics"
       branch_name     = "main"
       root_folder     = "/datafactory"
     }
