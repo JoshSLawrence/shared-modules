@@ -47,7 +47,7 @@ module "key_vault" {
 }
 
 module "data_lake" {
-  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.0.1"
+  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.1.1"
 
   name                = "stlake${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.this.name

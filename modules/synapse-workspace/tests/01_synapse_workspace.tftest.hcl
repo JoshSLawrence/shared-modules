@@ -726,9 +726,28 @@ run "storage_role_assignments_are_accepted" {
   }
 
   assert {
-    # Planning through storage-account/v0.1.0 is what proves the passthrough:
+    # Planning through storage-account/v0.1.1 is what proves the passthrough:
     # the module would reject an unknown or malformed role_assignments value.
     condition     = length(module.storage_account) == 1
     error_message = "Storage role assignments should be accepted and passed to the storage-account module."
+  }
+}
+
+run "managed_private_endpoints_leave_fqdns_to_azure" {
+  command = plan
+
+  variables {
+    storage_managed_private_endpoints = ["dfs"]
+    managed_private_endpoints = {
+      kv-test-vault = {
+        target_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
+        subresource_name   = "vault"
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_synapse_managed_private_endpoint.this["kv-test-vault"].fully_qualified_domain_names == null && azurerm_synapse_managed_private_endpoint.storage["dfs"].fully_qualified_domain_names == null
+    error_message = "The module should never set fully_qualified_domain_names: Azure fills them in for some targets (e.g. Key Vault)."
   }
 }

@@ -7,6 +7,16 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-10-09
+
+### Fixed
+
+- Managed private endpoints whose target Azure fills FQDNs in for (e.g. Key Vault `vault`) are no longer planned for replacement on every run. azurerm declares `fully_qualified_domain_names` as Optional and ForceNew but not Computed, so the module now ignores it (it never sets it).
+
+### Changed
+
+- Upgraded the storage-account dependency from `storage-account/v0.1.0` to `storage-account/v0.1.1`: a public default storage account no longer plans a `network_rules` change on every run. Upgrading applies a one-time in-place update to a public default storage account's network rules (no replacement).
+
 ## [v0.1.0] - 2026-10-08
 
 ### Added

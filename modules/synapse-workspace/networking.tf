@@ -124,6 +124,16 @@ resource "azurerm_synapse_managed_private_endpoint" "this" {
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]
+
+  # Azure fills in the FQDNs itself for some targets (e.g. Key Vault's
+  # vault), and azurerm declares the attribute Optional + ForceNew but not
+  # Computed (checked at v5.8.0), so leaving it unset would plan a
+  # replacement on every run. This module never sets it. Remove the ignore
+  # if an input for it is ever added (e.g. for Private Link Service
+  # targets).
+  lifecycle {
+    ignore_changes = [fully_qualified_domain_names]
+  }
 }
 
 resource "azurerm_synapse_managed_private_endpoint" "storage" {
@@ -140,4 +150,14 @@ resource "azurerm_synapse_managed_private_endpoint" "storage" {
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]
+
+  # Azure fills in the FQDNs itself for some targets (e.g. Key Vault's
+  # vault), and azurerm declares the attribute Optional + ForceNew but not
+  # Computed (checked at v5.8.0), so leaving it unset would plan a
+  # replacement on every run. This module never sets it. Remove the ignore
+  # if an input for it is ever added (e.g. for Private Link Service
+  # targets).
+  lifecycle {
+    ignore_changes = [fully_qualified_domain_names]
+  }
 }

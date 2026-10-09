@@ -3,7 +3,7 @@
 # release like any other dependency; upgrading it is a change (and a version
 # bump) to this module.
 module "storage_account" {
-  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.1.0"
+  source = "git::https://github.com/JoshSLawrence/shared-modules.git//modules/storage-account?ref=storage-account/v0.1.1"
   count  = var.storage_account == null ? 0 : 1
 
   name                                    = var.storage_account.name
