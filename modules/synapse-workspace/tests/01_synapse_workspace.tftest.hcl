@@ -397,8 +397,8 @@ run "github_repo_and_user_assigned_identity" {
 
   variables {
     github_repo = {
-      account_name    = "psu-oeo"
-      repository_name = "datalake"
+      account_name    = "contoso"
+      repository_name = "analytics"
       branch_name     = "main"
       root_folder     = "/synapse"
     }
@@ -406,7 +406,7 @@ run "github_repo_and_user_assigned_identity" {
   }
 
   assert {
-    condition     = azurerm_synapse_workspace.this.github_repo[0].repository_name == "datalake" && azurerm_synapse_workspace.this.github_repo[0].root_folder == "/synapse"
+    condition     = azurerm_synapse_workspace.this.github_repo[0].repository_name == "analytics" && azurerm_synapse_workspace.this.github_repo[0].root_folder == "/synapse"
     error_message = "github_repo should configure Git integration."
   }
 
