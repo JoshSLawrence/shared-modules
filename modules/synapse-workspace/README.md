@@ -170,11 +170,14 @@ replaced over it.
 Synapse records the collaboration branch's latest commit in the workspace's
 Git settings as people work in Synapse Studio in Git mode. The module
 ignores that value (`github_repo.last_commit_id` only seeds it), so a
-moving branch doesn't plan an update.
+moving branch doesn't plan an update. Changing another Git setting (the
+branch or repository) keeps the commit recorded for the old setting until
+Synapse records a new one, and the next update sends it back; that is
+harmless.
 
 ## Updating an Entra ID-only workspace
 
-azurerm (checked at v5.8.0 and v5.9.0) can't update an Entra ID-only
+azurerm (checked from v5.7.0, the module's minimum, to v5.9.0) can't update an Entra ID-only
 workspace in place: every update sends the SQL administrator password, and
 Synapse rejects its presence in the update, even an unchanged one, while
 `azuread_authentication_only = true`, with `AadOnlyAuthenticationIsEnabled`.
@@ -183,18 +186,20 @@ See
 
 That affects changes to the workspace resource itself: `tags`,
 the Git settings (`github_repo`, including removing it),
-`public_network_access_enabled`, `sql_administrator_password` and
-the customer-managed key. It doesn't affect separate resources such as Spark
+`public_network_access_enabled` and `sql_administrator_password`. It
+doesn't affect separate resources such as Spark
 pools, firewall rules, managed private endpoints and role assignments, which
 update normally, or the Entra ID-only setting (`azuread_authentication_only`)
 itself.
 
 To make one of those changes, apply twice:
 
-1. Set `azuread_authentication_only = false` and apply. The plan must show
-   nothing but that change: any other pending difference (e.g. tag drift from
-   the portal) fails this apply the same way. Once it succeeds, SQL
-   authentication is allowed.
+1. Set `azuread_authentication_only = false` and apply. The plan must not
+   change any other workspace setting in that list (tags, Git settings,
+   public network access, the SQL administrator password), including drift
+   such as tags changed in the portal: that fails this apply the same way.
+   Changes to other resources, such as Spark pools or role assignments, are
+   fine. Once it succeeds, SQL authentication is allowed.
 2. Make the change, set `azuread_authentication_only = true` again, and
    apply. The provider updates the workspace first, while SQL
    authentication is still allowed, then turns Entra ID-only back on. This
@@ -202,7 +207,13 @@ To make one of those changes, apply twice:
    one that was rotated outside OpenTofu.
 
 Keep the time between the two applies short: SQL authentication with the
-administrator password works until the second apply finishes.
+administrator password works until the second apply finishes. The password
+can be read from the state, the `sql_administrator_password` output and, if
+`sql_administrator_password_secret` is set, Key Vault.
+
+If the second apply fails, Entra ID-only stays off: revert the other change
+and apply again to turn it back on. The failed update changed nothing, so
+the plan then shows only the Entra ID-only change.
 
 ## Example
 
