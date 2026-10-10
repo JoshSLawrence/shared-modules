@@ -171,17 +171,17 @@ Synapse records the collaboration branch's latest commit in the workspace's
 Git settings as people work in Synapse Studio in Git mode. The module
 ignores that value (`github_repo.last_commit_id` only seeds it), so a
 moving branch doesn't plan an update. Changing another Git setting (the
-branch or repository) keeps the commit recorded for the old setting until
-Synapse records a new one, and the next update sends it back; that is
-harmless.
+branch or repository) keeps the commit recorded for the old setting, and the
+next update sends it back; Synapse overwrites it when it next records a
+commit.
 
 ## Updating an Entra ID-only workspace
 
-azurerm (checked from v5.7.0, the module's minimum, to v5.9.0) can't update an Entra ID-only
-workspace in place: every update sends the SQL administrator password, and
-Synapse rejects its presence in the update, even an unchanged one, while
-`azuread_authentication_only = true`, with `AadOnlyAuthenticationIsEnabled`.
-See
+azurerm (checked from v5.7.0, the module's minimum, to v5.9.0) can't update
+an Entra ID-only workspace in place: every update sends the SQL administrator
+password, and Synapse rejects its presence in the update, even an unchanged
+one, while `azuread_authentication_only = true`, with
+`AadOnlyAuthenticationIsEnabled`. See
 [hashicorp/terraform-provider-azurerm#25755](https://github.com/hashicorp/terraform-provider-azurerm/issues/25755).
 
 That affects changes to the workspace resource itself: `tags`,
