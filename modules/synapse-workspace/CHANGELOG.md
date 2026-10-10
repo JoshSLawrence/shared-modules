@@ -7,6 +7,13 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.1] - 2026-10-09
+
+### Fixed
+
+- A Git-integrated workspace no longer plans an update whenever its collaboration branch moves. Synapse records the branch's latest commit in `github_repo.last_commit_id` as people work in Synapse Studio, and azurerm declares it Optional but not Computed, so the module now ignores it; the input only seeds it when Git integration is first configured. On an Entra ID-only workspace that update also failed (`AadOnlyAuthenticationIsEnabled`). Upgrading plans no change.
+- The README documents that azurerm can't update an Entra ID-only workspace in place (tags, public network access, Git integration, SQL password, customer-managed key) and how to make such a change in two applies.
+
 ## [v0.2.0] - 2026-10-09
 
 ### Added

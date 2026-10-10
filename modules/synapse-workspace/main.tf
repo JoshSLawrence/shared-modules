@@ -36,6 +36,16 @@ resource "azurerm_synapse_workspace" "this" {
       last_commit_id  = github_repo.value.last_commit_id
     }
   }
+
+  # Synapse records the collaboration branch's latest commit here as people
+  # work in Synapse Studio in Git mode, so it drifts whenever the branch
+  # moves; the input only seeds it. Planning it back would also fail: azurerm
+  # can't update an Entra ID-only workspace in place (see the README).
+  # If the module ever exposes azure_devops_repo, it needs its own
+  # azure_devops_repo[0].last_commit_id entry.
+  lifecycle {
+    ignore_changes = [github_repo[0].last_commit_id]
+  }
 }
 
 resource "azurerm_management_lock" "this" {
