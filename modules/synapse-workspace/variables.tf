@@ -525,8 +525,11 @@ variable "github_repo" {
     Connect Synapse Studio to a GitHub repository for source control.
     `branch_name` is the collaboration branch and `root_folder` the folder
     holding Synapse artifacts (e.g. `/synapse`). `git_url` is only needed for
-    GitHub Enterprise Server. A repository admin still has to approve the
-    Synapse app's access. `null` (the default) leaves Git integration off.
+    GitHub Enterprise Server. `last_commit_id` only seeds the commit Synapse
+    records when Git integration is first configured: Synapse updates it as
+    people work in Synapse Studio, and the module ignores later changes to
+    it. A repository admin still has to approve the Synapse app's access.
+    `null` (the default) leaves Git integration off.
   EOT
   default     = null
 }

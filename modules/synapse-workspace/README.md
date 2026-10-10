@@ -165,6 +165,56 @@ The module never sets a managed private endpoint's
 (it fills them in for some targets, e.g. Key Vault), so the endpoints aren't
 replaced over it.
 
+## Git integration
+
+Synapse records the collaboration branch's latest commit in the workspace's
+Git settings as people work in Synapse Studio in Git mode. The module
+ignores that value (`github_repo.last_commit_id` only seeds it), so a
+moving branch doesn't plan an update. Changing another Git setting (the
+branch or repository) keeps the commit recorded for the old setting, and the
+next update sends it back; Synapse overwrites it when it next records a
+commit.
+
+## Updating an Entra ID-only workspace
+
+azurerm (checked from v5.7.0, the module's minimum, to v5.9.0) can't update
+an Entra ID-only workspace in place: every update sends the SQL administrator
+password, and Synapse rejects its presence in the update, even an unchanged
+one, while `azuread_authentication_only = true`, with
+`AadOnlyAuthenticationIsEnabled`. See
+[hashicorp/terraform-provider-azurerm#25755](https://github.com/hashicorp/terraform-provider-azurerm/issues/25755).
+
+That affects changes to the workspace resource itself: `tags`,
+the Git settings (`github_repo`, including removing it),
+`public_network_access_enabled` and `sql_administrator_password`. It
+doesn't affect separate resources such as Spark
+pools, firewall rules, managed private endpoints and role assignments, which
+update normally, or the Entra ID-only setting (`azuread_authentication_only`)
+itself.
+
+To make one of those changes, apply twice:
+
+1. Set `azuread_authentication_only = false` and apply. The plan must not
+   change any other workspace setting in that list (tags, Git settings,
+   public network access, the SQL administrator password), including drift
+   such as tags changed in the portal: that fails this apply the same way.
+   Changes to other resources, such as Spark pools or role assignments, are
+   fine. Once it succeeds, SQL authentication is allowed.
+2. Make the change, set `azuread_authentication_only = true` again, and
+   apply. The provider updates the workspace first, while SQL
+   authentication is still allowed, then turns Entra ID-only back on. This
+   apply re-sends the configured SQL administrator password, so it resets
+   one that was rotated outside OpenTofu.
+
+Keep the time between the two applies short: SQL authentication with the
+administrator password works until the second apply finishes. The password
+can be read from the state, the `sql_administrator_password` output and, if
+`sql_administrator_password_secret` is set, Key Vault.
+
+If the second apply fails, Entra ID-only stays off: revert the other change
+and apply again to turn it back on. The failed update changed nothing, so
+the plan then shows only the Entra ID-only change.
+
 ## Example
 
 ```hcl
@@ -252,7 +302,7 @@ See [examples/](./examples) for complete root modules.
 | <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings) | Send the workspace's logs (and, for a storage account this module<br/>creates, its storage logs and metrics) to a Log Analytics workspace.<br/>`null` (the default) disables diagnostics.<br/><br/>- `log_categories`: workspace log categories to enable. `null` (the<br/>  default) enables the `allLogs` category group; `[]` enables no logs.<br/>- `metric_categories`: workspace metric categories to enable. `null` or<br/>  `[]` (the default) enables none; the workspace sets no metrics unless<br/>  asked.<br/>- `storage_log_categories`, `storage_metric_categories`: the same for the<br/>  storage account this module creates (passed as the storage-account<br/>  module's `log_categories` and `metric_categories`). `null` (the<br/>  default) uses that module's defaults; `[]` enables none. Ignored with<br/>  `existing_storage`.<br/><br/>The workspace's setting must end up with at least one log or metric<br/>category enabled. | <pre>object({<br/>    log_analytics_workspace_id = string<br/>    name                       = optional(string, "diag-log-analytics")<br/>    log_categories             = optional(list(string))<br/>    metric_categories          = optional(list(string))<br/>    storage_log_categories     = optional(list(string))<br/>    storage_metric_categories  = optional(list(string))<br/>  })</pre> | `null` | no |
 | <a name="input_entra_admin"></a> [entra\_admin](#input\_entra\_admin) | Entra ID administrator for the workspace's SQL endpoints (a user or,<br/>preferably, a group). `login` is the user principal name or group<br/>display name. `tenant_id` defaults to the tenant of the identity running<br/>OpenTofu. `null` (the default) sets no Entra administrator.<br/><br/>This is the SQL administrator only. Grant Synapse RBAC roles (e.g.<br/>`Synapse Administrator`) with `synapse_role_assignments`. | <pre>object({<br/>    login     = string<br/>    object_id = string<br/>    tenant_id = optional(string)<br/>  })</pre> | `null` | no |
 | <a name="input_existing_storage"></a> [existing\_storage](#input\_existing\_storage) | Use an existing ADLS Gen2 file system as the workspace's default storage<br/>instead of creating one. Set this or `storage_account`, not both.<br/><br/>- `data_lake_filesystem_id` - `https://<account>.dfs.core.windows.net/<file system>`<br/>  (e.g. the `data_lake_filesystem_id` of a storage-account module<br/>  container, or `azurerm_storage_data_lake_gen2_filesystem.id`).<br/>- `storage_account_id` - resource ID of the account holding it.<br/>- `assign_blob_data_contributor` - grant the workspace's managed<br/>  identity `Storage Blob Data Contributor` on the account (default<br/>  `true`). Synapse needs it; set `false` only if it's granted elsewhere. | <pre>object({<br/>    data_lake_filesystem_id      = string<br/>    storage_account_id           = string<br/>    assign_blob_data_contributor = optional(bool, true)<br/>  })</pre> | `null` | no |
-| <a name="input_github_repo"></a> [github\_repo](#input\_github\_repo) | Connect Synapse Studio to a GitHub repository for source control.<br/>`branch_name` is the collaboration branch and `root_folder` the folder<br/>holding Synapse artifacts (e.g. `/synapse`). `git_url` is only needed for<br/>GitHub Enterprise Server. A repository admin still has to approve the<br/>Synapse app's access. `null` (the default) leaves Git integration off. | <pre>object({<br/>    account_name    = string<br/>    repository_name = string<br/>    branch_name     = string<br/>    root_folder     = optional(string, "/")<br/>    git_url         = optional(string)<br/>    last_commit_id  = optional(string)<br/>  })</pre> | `null` | no |
+| <a name="input_github_repo"></a> [github\_repo](#input\_github\_repo) | Connect Synapse Studio to a GitHub repository for source control.<br/>`branch_name` is the collaboration branch and `root_folder` the folder<br/>holding Synapse artifacts (e.g. `/synapse`). `git_url` is only needed for<br/>GitHub Enterprise Server. `last_commit_id` only seeds the commit Synapse<br/>records when Git integration is first configured: Synapse updates it as<br/>people work in Synapse Studio, and the module ignores later changes to<br/>it. A repository admin still has to approve the Synapse app's access.<br/>`null` (the default) leaves Git integration off. | <pre>object({<br/>    account_name    = string<br/>    repository_name = string<br/>    branch_name     = string<br/>    root_folder     = optional(string, "/")<br/>    git_url         = optional(string)<br/>    last_commit_id  = optional(string)<br/>  })</pre> | `null` | no |
 | <a name="input_identity_ids"></a> [identity\_ids](#input\_identity\_ids) | User-assigned managed identities to attach in addition to the always-on system-assigned identity. | `list(string)` | `[]` | no |
 | <a name="input_linking_allowed_for_aad_tenant_ids"></a> [linking\_allowed\_for\_aad\_tenant\_ids](#input\_linking\_allowed\_for\_aad\_tenant\_ids) | Entra ID tenants that managed private endpoints may connect to while data exfiltration protection is enabled. Requires `data_exfiltration_protection_enabled`. | `list(string)` | `[]` | no |
 | <a name="input_location"></a> [location](#input\_location) | Azure region to create the workspace and its storage account in (e.g. `eastus`). | `string` | n/a | yes |
