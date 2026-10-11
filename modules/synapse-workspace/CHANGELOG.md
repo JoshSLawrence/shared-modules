@@ -7,6 +7,17 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-10-11
+
+### Added
+
+- `storage_account.delete_retention_days` and `storage_account.container_delete_retention_days`: soft delete retention (0-365 days, `0` turns it off) for blobs and containers on the default storage account the module creates
+
+### Changed
+
+- The default storage account now has 7-day blob and container soft delete (previously always off). Upgrading applies an in-place update to the default storage account's blob service properties (no replacement). Set both `delete_retention_days` and `container_delete_retention_days` to `0` to keep the previous behavior.
+- Corrected the documentation: Azure doesn't support blob versioning or the change feed on accounts with a hierarchical namespace, which this storage always has. Soft delete is supported. Versioning and the change feed stay off.
+
 ## [v0.2.1] - 2026-10-10
 
 ### Fixed

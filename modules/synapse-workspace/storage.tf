@@ -20,14 +20,7 @@ module "storage_account" {
   diagnostic_settings                     = local.storage_diagnostic_settings
   lock                                    = var.lock
 
-  # Synapse doesn't support blob versioning or soft delete on its default
-  # storage
-  blob_properties = {
-    versioning_enabled              = false
-    change_feed_enabled             = false
-    delete_retention_days           = 0
-    container_delete_retention_days = 0
-  }
+  blob_properties = local.storage_blob_properties
 
   containers = {
     synapse = {
@@ -37,6 +30,16 @@ module "storage_account" {
 }
 
 locals {
+  # Blob versioning and change feed aren't supported on accounts with a
+  # hierarchical namespace, which Synapse's default storage always is. Soft
+  # delete is.
+  storage_blob_properties = var.storage_account == null ? null : {
+    versioning_enabled              = false
+    change_feed_enabled             = false
+    delete_retention_days           = var.storage_account.delete_retention_days
+    container_delete_retention_days = var.storage_account.container_delete_retention_days
+  }
+
   # The workspace's own categories don't apply to the storage account, which
   # has its own
   storage_diagnostic_settings = var.diagnostic_settings == null ? null : {
