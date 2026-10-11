@@ -41,6 +41,18 @@ resource "azurerm_mssql_database" "this" {
 
   auto_pause_delay_in_minutes = each.value.auto_pause_delay_in_minutes
   min_capacity                = each.value.min_capacity
+
+  # Only managed when requested, so existing databases keep whatever
+  # retention Azure applied unless the caller opts in
+  dynamic "short_term_retention_policy" {
+    for_each = each.value.short_term_retention_days == null ? [] : [each.value.short_term_retention_days]
+
+    content {
+      retention_days = short_term_retention_policy.value
+      # A null interval is left to azurerm, which then defaults to 12
+      backup_interval_in_hours = each.value.backup_interval_in_hours
+    }
+  }
 }
 
 resource "azurerm_management_lock" "this" {

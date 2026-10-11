@@ -7,6 +7,15 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.2.0] - 2026-10-11
+
+### Added
+
+- `databases[*].short_term_retention_days`: point-in-time restore retention (1-35 days, at most 7 on the `Basic` SKU), set through a `short_term_retention_policy` block
+- `databases[*].backup_interval_in_hours`: differential backup interval (`12` or `24`); requires `short_term_retention_days`
+
+Both default to `null` (unmanaged). Upgrading changes nothing unless the new inputs are set.
+
 ## [v0.1.0] - 2026-10-08
 
 ### Added

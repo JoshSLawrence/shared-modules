@@ -94,6 +94,9 @@ variable "databases" {
     # Serverless only (GP_S_* / HS_S_* SKUs)
     auto_pause_delay_in_minutes = optional(number)
     min_capacity                = optional(number)
+    # Point-in-time restore
+    short_term_retention_days = optional(number)
+    backup_interval_in_hours  = optional(number)
   }))
   description = <<-EOT
     Databases to create on the server, keyed by an arbitrary static name.
@@ -112,6 +115,13 @@ variable "databases" {
       pause. `null` keeps Azure's default.
     - `min_capacity` - serverless (`GP_S_*` or `HS_S_*`) only: minimum
       vCores while running (e.g. `0.5`). `null` keeps Azure's default.
+    - `short_term_retention_days` - point-in-time restore (PITR) retention in
+      days, 1-35 (at most 7 on the `Basic` SKU). `null` (the default) leaves
+      it unmanaged, so Azure keeps its default (7 days for new databases).
+    - `backup_interval_in_hours` - differential backup interval, `12` or
+      `24`. Requires `short_term_retention_days`. `null` (the default) leaves
+      it unmanaged, and the provider then applies `12` whenever
+      `short_term_retention_days` is set.
   EOT
   default     = {}
   nullable    = false
@@ -141,6 +151,26 @@ variable "databases" {
   validation {
     condition     = alltrue([for db in values(var.databases) : coalesce(db.min_capacity, 1) > 0])
     error_message = "databases[*].min_capacity must be greater than 0."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : db.short_term_retention_days == null || (coalesce(db.short_term_retention_days, 1) >= 1 && coalesce(db.short_term_retention_days, 1) <= 35 && floor(coalesce(db.short_term_retention_days, 1)) == coalesce(db.short_term_retention_days, 1))])
+    error_message = "databases[*].short_term_retention_days must be a whole number between 1 and 35 (or null to leave it unmanaged)."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : db.sku_name != "Basic" || coalesce(db.short_term_retention_days, 1) <= 7])
+    error_message = "databases[*].short_term_retention_days must be at most 7 for the Basic SKU."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : db.backup_interval_in_hours == null || contains([12, 24], coalesce(db.backup_interval_in_hours, 0))])
+    error_message = "databases[*].backup_interval_in_hours must be 12 or 24 (or null to leave it unmanaged)."
+  }
+
+  validation {
+    condition     = alltrue([for db in values(var.databases) : db.backup_interval_in_hours == null || db.short_term_retention_days != null])
+    error_message = "databases[*].backup_interval_in_hours requires short_term_retention_days to be set."
   }
 }
 
