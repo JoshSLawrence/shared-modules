@@ -84,6 +84,44 @@ run "retention_days_are_validated" {
   expect_failures = [var.blob_properties]
 }
 
+run "versioning_is_rejected_with_hns" {
+  command = plan
+
+  variables {
+    is_hns_enabled = true
+    blob_properties = {
+      versioning_enabled = true
+    }
+  }
+
+  expect_failures = [var.blob_properties]
+}
+
+run "change_feed_is_rejected_with_hns" {
+  command = plan
+
+  variables {
+    is_hns_enabled = true
+    blob_properties = {
+      change_feed_enabled = true
+    }
+  }
+
+  expect_failures = [var.blob_properties]
+}
+
+run "soft_delete_is_allowed_with_hns" {
+  command = plan
+
+  variables {
+    is_hns_enabled = true
+    blob_properties = {
+      delete_retention_days           = 30
+      container_delete_retention_days = 30
+    }
+  }
+}
+
 run "container_name_is_validated" {
   command = plan
 

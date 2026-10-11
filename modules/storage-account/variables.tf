@@ -122,7 +122,7 @@ variable "blob_properties" {
       it.
 
     Blob versioning and the change feed aren't supported on an account with a
-    hierarchical namespace (`is_hns_enabled`), so leave them off there. Soft
+    hierarchical namespace (`is_hns_enabled`), and are rejected there. Soft
     delete is supported.
   EOT
   default     = {}
@@ -134,6 +134,12 @@ variable "blob_properties" {
       d >= 0 && d <= 365 && floor(d) == d
     ])
     error_message = "blob_properties delete retention days must be whole numbers between 1 and 365, or 0 to disable soft delete."
+  }
+
+  # Azure accepts the plan and fails the apply, so catch it at plan time
+  validation {
+    condition     = !var.is_hns_enabled || !(var.blob_properties.versioning_enabled || var.blob_properties.change_feed_enabled)
+    error_message = "blob_properties.versioning_enabled and change_feed_enabled must be false when is_hns_enabled is true: Azure doesn't support blob versioning or the change feed on accounts with a hierarchical namespace."
   }
 }
 

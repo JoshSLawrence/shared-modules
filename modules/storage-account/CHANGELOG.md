@@ -7,6 +7,12 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.1.3] - 2026-10-11
+
+### Fixed
+
+- `blob_properties` now rejects `versioning_enabled` or `change_feed_enabled` when `is_hns_enabled` is `true`, at plan time. Azure doesn't support either on accounts with a hierarchical namespace, so such a configuration previously planned and then failed on apply. Configurations that applied before are unaffected.
+
 ## [v0.1.2] - 2026-10-11
 
 ### Changed
