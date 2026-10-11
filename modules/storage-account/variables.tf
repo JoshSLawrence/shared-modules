@@ -121,8 +121,9 @@ variable "blob_properties" {
       delete retention (1-365 days) for blobs and containers; `0` disables
       it.
 
-    Synapse's default storage doesn't support versioning or soft delete; the
-    synapse-workspace module turns them off for the account it creates.
+    Blob versioning and the change feed aren't supported on an account with a
+    hierarchical namespace (`is_hns_enabled`), so leave them off there. Soft
+    delete is supported.
   EOT
   default     = {}
   nullable    = false

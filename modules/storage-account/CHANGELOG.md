@@ -7,6 +7,12 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.1.2] - 2026-10-11
+
+### Changed
+
+- Corrected the `blob_properties` description: blob versioning and the change feed aren't supported on accounts with a hierarchical namespace, but soft delete is. Description only, no behavior change.
+
 ## [v0.1.1] - 2026-10-09
 
 ### Fixed
