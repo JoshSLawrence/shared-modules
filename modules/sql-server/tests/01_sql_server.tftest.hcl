@@ -518,3 +518,36 @@ run "logs_off" {
     error_message = "An empty log_categories should send no logs but keep the default metrics."
   }
 }
+
+run "point_in_time_restore_is_unmanaged_by_default" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {}
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_mssql_database.this["app"].short_term_retention_policy) == 0
+    error_message = "short_term_retention_policy should be absent unless short_term_retention_days is set."
+  }
+}
+
+run "point_in_time_restore_is_configurable" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        short_term_retention_days = 35
+        backup_interval_in_hours  = 24
+      }
+    }
+  }
+
+  assert {
+    condition     = azurerm_mssql_database.this["app"].short_term_retention_policy[0].retention_days == 35 && azurerm_mssql_database.this["app"].short_term_retention_policy[0].backup_interval_in_hours == 24
+    error_message = "short_term_retention_policy should carry the retention days and backup interval."
+  }
+}
