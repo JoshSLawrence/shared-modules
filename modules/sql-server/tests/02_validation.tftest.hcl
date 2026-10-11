@@ -281,3 +281,75 @@ run "min_capacity_must_be_positive" {
 
   expect_failures = [var.databases]
 }
+
+run "pitr_days_zero" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        short_term_retention_days = 0
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "pitr_days_above_35" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        short_term_retention_days = 36
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "pitr_days_basic_sku_max_7" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        sku_name                  = "Basic"
+        short_term_retention_days = 8
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "pitr_interval_must_be_12_or_24" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        short_term_retention_days = 7
+        backup_interval_in_hours  = 6
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}
+
+run "pitr_interval_requires_retention_days" {
+  command = plan
+
+  variables {
+    databases = {
+      app = {
+        backup_interval_in_hours = 12
+      }
+    }
+  }
+
+  expect_failures = [var.databases]
+}

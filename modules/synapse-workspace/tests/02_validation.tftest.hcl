@@ -590,3 +590,29 @@ run "access_key_clashes_with_role_assignments" {
 
   expect_failures = [var.access]
 }
+
+run "storage_delete_retention_days_above_365" {
+  command = plan
+
+  variables {
+    storage_account = {
+      name                  = "stsynwtest"
+      delete_retention_days = 366
+    }
+  }
+
+  expect_failures = [var.storage_account]
+}
+
+run "storage_container_delete_retention_days_negative" {
+  command = plan
+
+  variables {
+    storage_account = {
+      name                            = "stsynwtest"
+      container_delete_retention_days = -1
+    }
+  }
+
+  expect_failures = [var.storage_account]
+}
