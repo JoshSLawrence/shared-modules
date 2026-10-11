@@ -42,6 +42,8 @@ module "sql_server" {
     app = {
       sku_name    = "S0"
       max_size_gb = 10
+
+      short_term_retention_days = 35
     }
   }
 
