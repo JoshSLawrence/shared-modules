@@ -33,6 +33,8 @@ variable "storage_account" {
     filesystem_name                         = optional(string, "synapse")
     account_replication_type                = optional(string, "RAGRS")
     infrastructure_encryption_enabled       = optional(bool, true)
+    delete_retention_days                   = optional(number, 7)
+    container_delete_retention_days         = optional(number, 7)
     public_network_access_enabled           = optional(bool)
     private_endpoints_manage_dns_zone_group = optional(bool)
     private_endpoints = optional(map(object({
@@ -72,13 +74,18 @@ variable "storage_account" {
     - `private_endpoints`, `account_replication_type`,
       `infrastructure_encryption_enabled` - passed to the storage-account
       module; see its README.
+    - `delete_retention_days` / `container_delete_retention_days` - soft
+      delete retention (1-365 days) for blobs and containers; `0` turns it
+      off. Default 7 days each.
     - `role_assignments` - extra Azure RBAC role assignments on the storage
       account, keyed by an arbitrary static name; the same shape as the
       storage-account module's `role_assignments`. The workspace identity's
       `Storage Blob Data Contributor` is always granted separately.
 
-    Blob versioning and soft delete are always disabled on this account:
-    Synapse doesn't support them on its default storage.
+    Blob versioning and the change feed are always disabled on this account:
+    Azure doesn't support them on a storage account with a hierarchical
+    namespace, which Synapse's default storage always is. Soft delete is
+    supported, so it is on by default.
   EOT
   default     = null
 
@@ -107,6 +114,14 @@ variable "storage_account" {
       alltrue([for pe in values(try(var.storage_account.private_endpoints, {})) : length(pe.private_dns_zone_ids) == 0])
     )
     error_message = "storage_account.private_endpoints[*].private_dns_zone_ids must be empty when the storage account's DNS zone groups are managed outside this module (private_endpoints_manage_dns_zone_group is false)."
+  }
+
+  validation {
+    condition = var.storage_account == null || alltrue([
+      for d in [try(var.storage_account.delete_retention_days, 0), try(var.storage_account.container_delete_retention_days, 0)] :
+      d >= 0 && d <= 365 && floor(d) == d
+    ])
+    error_message = "storage_account delete retention days must be whole numbers between 1 and 365, or 0 to disable soft delete."
   }
 
   validation {

@@ -854,3 +854,51 @@ run "credential_user_alone" {
     error_message = "credential_user alone should grant only Synapse Credential User."
   }
 }
+
+run "default_storage_has_soft_delete_by_default" {
+  command = plan
+
+  assert {
+    condition     = local.storage_blob_properties.delete_retention_days == 7 && local.storage_blob_properties.container_delete_retention_days == 7
+    error_message = "The default storage account should have 7-day blob and container soft delete."
+  }
+
+  assert {
+    condition     = local.storage_blob_properties.versioning_enabled == false && local.storage_blob_properties.change_feed_enabled == false
+    error_message = "Versioning and the change feed should stay off."
+  }
+}
+
+run "default_storage_soft_delete_is_configurable" {
+  command = plan
+
+  variables {
+    storage_account = {
+      name                            = "stsynwtest"
+      delete_retention_days           = 30
+      container_delete_retention_days = 14
+    }
+  }
+
+  assert {
+    condition     = local.storage_blob_properties.delete_retention_days == 30 && local.storage_blob_properties.container_delete_retention_days == 14
+    error_message = "storage_account should pass the soft delete retention days through."
+  }
+}
+
+run "default_storage_soft_delete_can_be_disabled" {
+  command = plan
+
+  variables {
+    storage_account = {
+      name                            = "stsynwtest"
+      delete_retention_days           = 0
+      container_delete_retention_days = 0
+    }
+  }
+
+  assert {
+    condition     = local.storage_blob_properties.delete_retention_days == 0 && local.storage_blob_properties.container_delete_retention_days == 0
+    error_message = "Setting both retention days to 0 should turn soft delete off."
+  }
+}
