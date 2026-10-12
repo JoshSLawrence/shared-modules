@@ -58,11 +58,16 @@ jobs:
     name: Plan
     # PRs from forks get neither the environment secrets nor an OIDC token,
     # so they can't plan -- see CONTRIBUTING.md#reviewing-external-pull-requests.
+    # Runs Dependabot triggers (including re-runs of them) get no Actions or
+    # environment secrets either, so its action bumps skip rather than fail;
+    # run this workflow on main after merging one to check the new pins. A
+    # commit you push to its branch makes you the actor, so that does plan.
     # Manual runs only ever plan main.
     if: >-
       vars.IAC_AZURE_CLIENT_ID != '' && (
         (github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository) ||
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.actor != 'dependabot[bot]') ||
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
       )
     environment: iac-plan
