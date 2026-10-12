@@ -74,7 +74,9 @@ reject approvals for runs that have been superseded.
 Never apply a branch you didn't write or haven't fully reviewed. The
 workflow doesn't run for PRs from forks (they get no secrets), so to apply
 an external contributor's `iac/` change, push a reviewed copy to a branch
-in this repo and open a PR from it.
+in this repo and open a PR from it. For the same reason it skips
+Dependabot's PRs; after merging one that bumps the actions in
+`iac.yaml`, run the workflow on `main` to check them.
 
 ### Applying by hand
 
