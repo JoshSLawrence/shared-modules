@@ -216,7 +216,7 @@ variable "firewall_rules" {
     (`allow_all_ip_addresses`).
 
     The module creates these rules and orders its own data-plane resources
-    (Synapse role assignments, managed private endpoints) after them. A
+    (Synapse role assignments, managed private endpoints) after them. An
     `azurerm_synapse_firewall_rule` you create outside the module is not
     ordered before those resources, so a first apply can fail with a
     firewall error. `AllowAll` and `AllowAllWindowsAzureIps` are reserved
@@ -239,9 +239,32 @@ variable "firewall_rules" {
     error_message = "firewall_rules start_ip_address and end_ip_address must be IPv4 addresses such as 203.0.113.10. Fix the addresses (CIDR notation isn't accepted)."
   }
 
+  # Entries that fail the format check above are skipped here, so this
+  # never errors on a malformed address.
   validation {
-    condition     = alltrue([for name in keys(var.firewall_rules) : !contains(["AllowAll", "AllowAllWindowsAzureIps"], name)])
-    error_message = "firewall_rules can't use the names AllowAll or AllowAllWindowsAzureIps: the module reserves them. Rename the rule, or use allow_all_ip_addresses or azure_services_access_enabled."
+    condition = alltrue([
+      for rule in values(var.firewall_rules) :
+      can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.start_ip_address)) && can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.end_ip_address)) ? (
+        sum([for i, o in split(".", rule.start_ip_address) : tonumber(o) * pow(256, 3 - i)]) <= sum([for i, o in split(".", rule.end_ip_address) : tonumber(o) * pow(256, 3 - i)])
+      ) : true
+    ])
+    error_message = "firewall_rules start_ip_address must not be greater than end_ip_address. Swap the addresses of the offending rule."
+  }
+
+  validation {
+    condition     = alltrue([for rule in values(var.firewall_rules) : rule.end_ip_address != "0.0.0.0"])
+    error_message = "firewall_rules can't end at 0.0.0.0: the 0.0.0.0-0.0.0.0 range is Azure's marker for \"allow Azure services\". Use azure_services_access_enabled instead."
+  }
+
+  # Azure resource names are case-insensitive, so compare lowercased
+  validation {
+    condition     = alltrue([for name in keys(var.firewall_rules) : !contains(["allowall", "allowallwindowsazureips"], lower(name))])
+    error_message = "firewall_rules can't use the names AllowAll or AllowAllWindowsAzureIps (in any letter case): the module reserves them. Rename the rule, or use allow_all_ip_addresses or azure_services_access_enabled."
+  }
+
+  validation {
+    condition     = length(distinct([for name in keys(var.firewall_rules) : lower(name)])) == length(var.firewall_rules)
+    error_message = "firewall_rules names must be unique ignoring letter case: Azure treats Office and office as the same rule. Rename or remove the duplicates."
   }
 }
 

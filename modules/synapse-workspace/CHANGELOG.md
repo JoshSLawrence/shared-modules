@@ -12,7 +12,7 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ### Added
 
 - `allow_all_ip_addresses` (default `false`): add the `AllowAll` firewall rule to a public workspace. Validation rejects it on a private workspace.
-- `firewall_rules`: firewall rules for a public workspace, a map keyed by rule name of `start_ip_address` and `end_ip_address` (IPv4). The module creates them and orders its Synapse role assignments, managed private endpoints and lock after them, which rules created outside the module can't be. Validation rejects them on a private workspace, malformed addresses, and the reserved names `AllowAll` and `AllowAllWindowsAzureIps`.
+- `firewall_rules`: firewall rules for a public workspace, a map keyed by rule name of `start_ip_address` and `end_ip_address` (IPv4). The module creates them and orders its Synapse role assignments, managed private endpoints and lock after them, which rules created outside the module can't be. Validation rejects them on a private workspace, malformed or reversed address ranges, a range ending at `0.0.0.0` (use `azure_services_access_enabled`), names differing only in letter case, and the reserved names `AllowAll` and `AllowAllWindowsAzureIps` in any letter case.
 - `firewall_rule_names` output: the names of the firewall rules the module created.
 
 ### Changed
