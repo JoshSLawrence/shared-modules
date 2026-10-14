@@ -124,3 +124,12 @@ output "private_dns_records" {
     var.storage_account == null ? [] : module.storage_account[0].private_dns_records,
   )
 }
+
+output "firewall_rule_names" {
+  description = "Names of the firewall rules this module created: `AllowAll` (`allow_all_ip_addresses`), `AllowAllWindowsAzureIps` (`azure_services_access_enabled`) and the `firewall_rules` keys."
+  value = concat(
+    azurerm_synapse_firewall_rule.allow_all[*].name,
+    azurerm_synapse_firewall_rule.azure_services[*].name,
+    [for rule in azurerm_synapse_firewall_rule.custom : rule.name],
+  )
+}

@@ -1,8 +1,10 @@
 # With public access enabled, Synapse's firewall still blocks every network
-# until a rule admits it. Public means public to all here, so one rule spans
-# the whole IPv4 range.
+# until a rule admits it. allow_all_ip_addresses opts in to one rule spanning
+# the whole IPv4 range; firewall_rules lists narrower ranges. The address is
+# the same as before the input existed, so a caller that sets it keeps its
+# existing rule.
 resource "azurerm_synapse_firewall_rule" "allow_all" {
-  count = var.public_network_access_enabled ? 1 : 0
+  count = var.public_network_access_enabled && var.allow_all_ip_addresses ? 1 : 0
 
   name                 = "AllowAll"
   synapse_workspace_id = azurerm_synapse_workspace.this.id
@@ -19,6 +21,18 @@ resource "azurerm_synapse_firewall_rule" "azure_services" {
   synapse_workspace_id = azurerm_synapse_workspace.this.id
   start_ip_address     = "0.0.0.0"
   end_ip_address       = "0.0.0.0"
+}
+
+# Created here rather than by the caller so the data-plane resources below
+# can wait for them: a rule the caller owns can't be ordered before them
+# without a dependency cycle, and they would race it on a first apply.
+resource "azurerm_synapse_firewall_rule" "custom" {
+  for_each = var.public_network_access_enabled ? var.firewall_rules : {}
+
+  name                 = each.key
+  synapse_workspace_id = azurerm_synapse_workspace.this.id
+  start_ip_address     = each.value.start_ip_address
+  end_ip_address       = each.value.end_ip_address
 }
 
 locals {
@@ -121,6 +135,7 @@ resource "azurerm_synapse_managed_private_endpoint" "this" {
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
     azurerm_synapse_firewall_rule.azure_services,
+    azurerm_synapse_firewall_rule.custom,
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]
@@ -147,6 +162,7 @@ resource "azurerm_synapse_managed_private_endpoint" "storage" {
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
     azurerm_synapse_firewall_rule.azure_services,
+    azurerm_synapse_firewall_rule.custom,
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]

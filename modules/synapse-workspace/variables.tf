@@ -171,12 +171,107 @@ variable "public_network_access_enabled" {
     - `false` (the default) - private: the public endpoints are disabled and
       the workspace (Studio, dev and SQL endpoints) is reachable only through
       `private_endpoints`.
-    - `true` - public: the endpoints are enabled and an `AllowAll` firewall
-      rule (0.0.0.0-255.255.255.255) admits every network (still subject to
-      Entra ID or SQL authentication). Synapse's firewall otherwise blocks
-      everything even with public access on.
+    - `true` - public: the endpoints are enabled, behind Synapse's firewall,
+      which blocks every network until a rule admits it. Open it with
+      `allow_all_ip_addresses` (every network), `firewall_rules` (the
+      networks that need access) and/or `azure_services_access_enabled`
+      (Azure services). Access is still subject to Entra ID or SQL
+      authentication.
   EOT
   default     = false
+}
+
+variable "allow_all_ip_addresses" {
+  type        = bool
+  description = <<-EOT
+    Add the `AllowAll` firewall rule (0.0.0.0-255.255.255.255), which admits
+    every network to the workspace's public endpoints. Only valid with
+    `public_network_access_enabled = true`. Default `false`: a public
+    workspace admits no network until you set this, `firewall_rules` or
+    `azure_services_access_enabled`.
+
+    Before v0.4.0 every public workspace got this rule. To keep it when
+    upgrading, set `true`: the rule keeps its address, so nothing is
+    replaced.
+  EOT
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.allow_all_ip_addresses || var.public_network_access_enabled
+    error_message = "allow_all_ip_addresses requires public_network_access_enabled = true: the AllowAll firewall rule only applies to the public endpoints."
+  }
+}
+
+variable "firewall_rules" {
+  type = map(object({
+    start_ip_address = string
+    end_ip_address   = string
+  }))
+  description = <<-EOT
+    Firewall rules for the workspace's public endpoints, keyed by rule name,
+    each an IPv4 range (`start_ip_address`, `end_ip_address`). Only valid
+    with `public_network_access_enabled = true`. Default `{}`. Use this to
+    admit specific networks instead of every network
+    (`allow_all_ip_addresses`).
+
+    The module creates these rules and orders its own data-plane resources
+    (Synapse role assignments, managed private endpoints) after them. An
+    `azurerm_synapse_firewall_rule` you create outside the module is not
+    ordered before those resources, so a first apply can fail with a
+    firewall error.
+
+    Rule names must be unique ignoring letter case (Azure treats `Office`
+    and `office` as one rule). `AllowAll` and `AllowAllWindowsAzureIps` are
+    reserved, in any letter case, for `allow_all_ip_addresses` and
+    `azure_services_access_enabled`. No range may end at `0.0.0.0`, which is
+    Azure's marker for "allow Azure services": use
+    `azure_services_access_enabled` for that.
+  EOT
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition     = length(var.firewall_rules) == 0 || var.public_network_access_enabled
+    error_message = "firewall_rules requires public_network_access_enabled = true: firewall rules only apply to the public endpoints. Remove firewall_rules, or enable public network access."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in values(var.firewall_rules) :
+      can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.start_ip_address)) &&
+      can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.end_ip_address))
+    ])
+    error_message = "firewall_rules start_ip_address and end_ip_address must be IPv4 addresses such as 203.0.113.10. Fix the addresses (CIDR notation isn't accepted)."
+  }
+
+  # Entries that fail the format check above are skipped here, so this
+  # never errors on a malformed address.
+  validation {
+    condition = alltrue([
+      for rule in values(var.firewall_rules) :
+      can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.start_ip_address)) && can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.end_ip_address)) ? (
+        sum([for i, o in split(".", rule.start_ip_address) : tonumber(o) * pow(256, 3 - i)]) <= sum([for i, o in split(".", rule.end_ip_address) : tonumber(o) * pow(256, 3 - i)])
+      ) : true
+    ])
+    error_message = "firewall_rules start_ip_address must not be greater than end_ip_address. Swap the addresses of the offending rule."
+  }
+
+  validation {
+    condition     = alltrue([for rule in values(var.firewall_rules) : rule.end_ip_address != "0.0.0.0"])
+    error_message = "firewall_rules can't end at 0.0.0.0: the 0.0.0.0-0.0.0.0 range is Azure's marker for \"allow Azure services\". Use azure_services_access_enabled instead."
+  }
+
+  # Azure resource names are case-insensitive, so compare lowercased
+  validation {
+    condition     = alltrue([for name in keys(var.firewall_rules) : !contains(["allowall", "allowallwindowsazureips"], lower(name))])
+    error_message = "firewall_rules can't use the names AllowAll or AllowAllWindowsAzureIps (in any letter case): the module reserves them. Rename the rule, or use allow_all_ip_addresses or azure_services_access_enabled."
+  }
+
+  validation {
+    condition     = length(distinct([for name in keys(var.firewall_rules) : lower(name)])) == length(var.firewall_rules)
+    error_message = "firewall_rules names must be unique ignoring letter case: Azure treats Office and office as the same rule. Rename or remove the duplicates."
+  }
 }
 
 variable "azure_services_access_enabled" {
@@ -187,8 +282,8 @@ variable "azure_services_access_enabled" {
     with `public_network_access_enabled = true`; a private workspace is
     reached through `private_endpoints` instead. Default `false`.
 
-    This is separate from `public_network_access_enabled`'s `AllowAll` rule
-    (an IP range): it is the portal's "Allow Azure services and resources to
+    This is separate from `allow_all_ip_addresses`' `AllowAll` rule (an IP
+    range): it is the portal's "Allow Azure services and resources to
     access this workspace" setting, which also covers traffic the IP rule
     doesn't, such as Azure services reaching the workspace from Azure
     networks via service endpoints, and features and portal checks that look

@@ -7,6 +7,19 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-10-13
+
+### Added
+
+- `allow_all_ip_addresses` (default `false`): add the `AllowAll` firewall rule to a public workspace. Validation rejects it on a private workspace.
+- `firewall_rules`: firewall rules for a public workspace, a map keyed by rule name of `start_ip_address` and `end_ip_address` (IPv4). The module creates them and orders its Synapse role assignments, managed private endpoints and lock after them, which rules created outside the module can't be. Validation rejects them on a private workspace, malformed or reversed address ranges, a range ending at `0.0.0.0` (use `azure_services_access_enabled`), names differing only in letter case, and the reserved names `AllowAll` and `AllowAllWindowsAzureIps` in any letter case.
+- `firewall_rule_names` output: the names of the firewall rules the module created.
+
+### Changed
+
+- **Breaking:** a public workspace (`public_network_access_enabled = true`) no longer gets the `AllowAll` firewall rule (0.0.0.0-255.255.255.255) by default. It is opt-in with the new `allow_all_ip_addresses` input. The `AllowAllWindowsAzureIps` rule (`azure_services_access_enabled`) is unaffected.
+  - **Upgrading:** a public workspace that doesn't opt in loses the `AllowAll` rule on the next apply (the plan destroys `azurerm_synapse_firewall_rule.allow_all[0]`). After that, plans and applies run from outside the firewall fail when they refresh the module's Synapse role assignments and managed private endpoints through the workspace's development endpoint. Before upgrading, set `allow_all_ip_addresses = true` to keep the previous behaviour (the rule keeps its address, so the plan shows no change), or list the networks that need access in `firewall_rules`.
+
 ## [v0.3.0] - 2026-10-11
 
 ### Added

@@ -60,6 +60,7 @@ resource "azurerm_management_lock" "this" {
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
     azurerm_synapse_firewall_rule.azure_services,
+    azurerm_synapse_firewall_rule.custom,
     azurerm_synapse_spark_pool.this,
     azurerm_synapse_workspace_aad_admin.this,
   ]
@@ -128,6 +129,7 @@ resource "azurerm_synapse_role_assignment" "this" {
   depends_on = [
     azurerm_synapse_firewall_rule.allow_all,
     azurerm_synapse_firewall_rule.azure_services,
+    azurerm_synapse_firewall_rule.custom,
     azurerm_private_endpoint.this,
     azurerm_private_endpoint.this_unmanaged_dns_zone_group,
   ]

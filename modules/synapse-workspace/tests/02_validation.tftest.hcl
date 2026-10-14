@@ -465,6 +465,16 @@ run "azure_services_access_requires_public_access" {
   expect_failures = [var.azure_services_access_enabled]
 }
 
+run "allow_all_ip_addresses_requires_public_access" {
+  command = plan
+
+  variables {
+    allow_all_ip_addresses = true
+  }
+
+  expect_failures = [var.allow_all_ip_addresses]
+}
+
 run "storage_role_assignment_principal_type_is_validated" {
   command = plan
 
@@ -615,4 +625,108 @@ run "storage_container_delete_retention_days_negative" {
   }
 
   expect_failures = [var.storage_account]
+}
+
+run "firewall_rules_require_public_access" {
+  command = plan
+
+  variables {
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_bad_ip_address" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.256" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_cidr" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.0/24", end_ip_address = "203.0.113.255" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_reserved_names" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      AllowAll = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_reserved_names_in_any_case" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      allowall = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_names_differing_only_in_case" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      Office = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+      office = { start_ip_address = "198.51.100.7", end_ip_address = "198.51.100.8" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_reversed_range" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.20", end_ip_address = "203.0.113.10" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_azure_services_range" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      azure = { start_ip_address = "0.0.0.0", end_ip_address = "0.0.0.0" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
 }
