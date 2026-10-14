@@ -916,3 +916,43 @@ run "default_storage_soft_delete_can_be_disabled" {
     error_message = "Setting both retention days to 0 should turn soft delete off."
   }
 }
+
+run "firewall_rules_create_one_rule_per_entry" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+      runner = { start_ip_address = "198.51.100.7", end_ip_address = "198.51.100.7" }
+    }
+  }
+
+  assert {
+    condition     = length(azurerm_synapse_firewall_rule.custom) == 2 && azurerm_synapse_firewall_rule.custom["office"].name == "office" && azurerm_synapse_firewall_rule.custom["office"].start_ip_address == "203.0.113.10" && azurerm_synapse_firewall_rule.custom["office"].end_ip_address == "203.0.113.20" && azurerm_synapse_firewall_rule.custom["runner"].start_ip_address == "198.51.100.7"
+    error_message = "firewall_rules should create one rule per entry with the given addresses."
+  }
+
+  assert {
+    condition     = length(azurerm_synapse_firewall_rule.allow_all) == 0
+    error_message = "firewall_rules should not add the AllowAll rule."
+  }
+
+  assert {
+    condition     = toset(output.firewall_rule_names) == toset(["office", "runner"])
+    error_message = "firewall_rule_names should list the rules the module created."
+  }
+}
+
+run "no_firewall_rules_by_default" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+  }
+
+  assert {
+    condition     = length(azurerm_synapse_firewall_rule.custom) == 0 && length(output.firewall_rule_names) == 0
+    error_message = "A public workspace should get no firewall rules unless asked."
+  }
+}

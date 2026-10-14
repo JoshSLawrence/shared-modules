@@ -98,4 +98,11 @@ run "existing_storage_example_plans" {
     condition     = module.synapse_workspace.data_lake_filesystem_id == "https://sttest001.dfs.core.windows.net/synapse"
     error_message = "The workspace should use the data lake's synapse file system."
   }
+
+  # The example is public and creates role assignments and managed private
+  # endpoints over the public endpoint, so it needs a rule admitting OpenTofu
+  assert {
+    condition     = contains(module.synapse_workspace.firewall_rule_names, "AllowAll")
+    error_message = "The example should opt in to the AllowAll rule."
+  }
 }

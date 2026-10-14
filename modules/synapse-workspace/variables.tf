@@ -172,10 +172,10 @@ variable "public_network_access_enabled" {
       the workspace (Studio, dev and SQL endpoints) is reachable only through
       `private_endpoints`.
     - `true` - public: the endpoints are enabled, behind Synapse's firewall,
-      which blocks every network until a rule admits it. Set
-      `allow_all_ip_addresses` to admit every network, or add firewall rules
-      for the networks that need access (`azurerm_synapse_firewall_rule` on
-      the module's `id`). Access is still subject to Entra ID or SQL
+      which blocks every network until a rule admits it. Open it with
+      `allow_all_ip_addresses` (every network), `firewall_rules` (the
+      networks that need access) and/or `azure_services_access_enabled`
+      (Azure services). Access is still subject to Entra ID or SQL
       authentication.
   EOT
   default     = false
@@ -187,7 +187,8 @@ variable "allow_all_ip_addresses" {
     Add the `AllowAll` firewall rule (0.0.0.0-255.255.255.255), which admits
     every network to the workspace's public endpoints. Only valid with
     `public_network_access_enabled = true`. Default `false`: a public
-    workspace admits no network until the caller adds firewall rules.
+    workspace admits no network until you set this, `firewall_rules` or
+    `azure_services_access_enabled`.
 
     Before v0.4.0 every public workspace got this rule. To keep it when
     upgrading, set `true`: the rule keeps its address, so nothing is
@@ -199,6 +200,48 @@ variable "allow_all_ip_addresses" {
   validation {
     condition     = !var.allow_all_ip_addresses || var.public_network_access_enabled
     error_message = "allow_all_ip_addresses requires public_network_access_enabled = true: the AllowAll firewall rule only applies to the public endpoints."
+  }
+}
+
+variable "firewall_rules" {
+  type = map(object({
+    start_ip_address = string
+    end_ip_address   = string
+  }))
+  description = <<-EOT
+    Firewall rules for the workspace's public endpoints, keyed by rule name,
+    each an IPv4 range (`start_ip_address`, `end_ip_address`). Only valid
+    with `public_network_access_enabled = true`. Default `{}`. Use this to
+    admit specific networks instead of every network
+    (`allow_all_ip_addresses`).
+
+    The module creates these rules and orders its own data-plane resources
+    (Synapse role assignments, managed private endpoints) after them. A
+    `azurerm_synapse_firewall_rule` you create outside the module is not
+    ordered before those resources, so a first apply can fail with a
+    firewall error. `AllowAll` and `AllowAllWindowsAzureIps` are reserved
+    for `allow_all_ip_addresses` and `azure_services_access_enabled`.
+  EOT
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition     = length(var.firewall_rules) == 0 || var.public_network_access_enabled
+    error_message = "firewall_rules requires public_network_access_enabled = true: firewall rules only apply to the public endpoints. Remove firewall_rules, or enable public network access."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in values(var.firewall_rules) :
+      can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.start_ip_address)) &&
+      can(regex("^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$", rule.end_ip_address))
+    ])
+    error_message = "firewall_rules start_ip_address and end_ip_address must be IPv4 addresses such as 203.0.113.10. Fix the addresses (CIDR notation isn't accepted)."
+  }
+
+  validation {
+    condition     = alltrue([for name in keys(var.firewall_rules) : !contains(["AllowAll", "AllowAllWindowsAzureIps"], name)])
+    error_message = "firewall_rules can't use the names AllowAll or AllowAllWindowsAzureIps: the module reserves them. Rename the rule, or use allow_all_ip_addresses or azure_services_access_enabled."
   }
 }
 

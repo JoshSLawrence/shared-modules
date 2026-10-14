@@ -626,3 +626,54 @@ run "storage_container_delete_retention_days_negative" {
 
   expect_failures = [var.storage_account]
 }
+
+run "firewall_rules_require_public_access" {
+  command = plan
+
+  variables {
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_bad_ip_address" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.256" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_cidr" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      office = { start_ip_address = "203.0.113.0/24", end_ip_address = "203.0.113.255" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
+
+run "firewall_rules_reject_reserved_names" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    firewall_rules = {
+      AllowAll = { start_ip_address = "203.0.113.10", end_ip_address = "203.0.113.20" }
+    }
+  }
+
+  expect_failures = [var.firewall_rules]
+}
