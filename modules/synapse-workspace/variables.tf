@@ -171,12 +171,35 @@ variable "public_network_access_enabled" {
     - `false` (the default) - private: the public endpoints are disabled and
       the workspace (Studio, dev and SQL endpoints) is reachable only through
       `private_endpoints`.
-    - `true` - public: the endpoints are enabled and an `AllowAll` firewall
-      rule (0.0.0.0-255.255.255.255) admits every network (still subject to
-      Entra ID or SQL authentication). Synapse's firewall otherwise blocks
-      everything even with public access on.
+    - `true` - public: the endpoints are enabled, behind Synapse's firewall,
+      which blocks every network until a rule admits it. Set
+      `allow_all_ip_addresses` to admit every network, or add firewall rules
+      for the networks that need access (`azurerm_synapse_firewall_rule` on
+      the module's `id`). Access is still subject to Entra ID or SQL
+      authentication.
   EOT
   default     = false
+}
+
+variable "allow_all_ip_addresses" {
+  type        = bool
+  description = <<-EOT
+    Add the `AllowAll` firewall rule (0.0.0.0-255.255.255.255), which admits
+    every network to the workspace's public endpoints. Only valid with
+    `public_network_access_enabled = true`. Default `false`: a public
+    workspace admits no network until the caller adds firewall rules.
+
+    Before v0.4.0 every public workspace got this rule. To keep it when
+    upgrading, set `true`: the rule keeps its address, so nothing is
+    replaced.
+  EOT
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.allow_all_ip_addresses || var.public_network_access_enabled
+    error_message = "allow_all_ip_addresses requires public_network_access_enabled = true: the AllowAll firewall rule only applies to the public endpoints."
+  }
 }
 
 variable "azure_services_access_enabled" {
@@ -187,8 +210,8 @@ variable "azure_services_access_enabled" {
     with `public_network_access_enabled = true`; a private workspace is
     reached through `private_endpoints` instead. Default `false`.
 
-    This is separate from `public_network_access_enabled`'s `AllowAll` rule
-    (an IP range): it is the portal's "Allow Azure services and resources to
+    This is separate from `allow_all_ip_addresses`' `AllowAll` rule (an IP
+    range): it is the portal's "Allow Azure services and resources to
     access this workspace" setting, which also covers traffic the IP rule
     doesn't, such as Azure services reaching the workspace from Azure
     networks via service endpoints, and features and portal checks that look

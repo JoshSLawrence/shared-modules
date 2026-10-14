@@ -465,6 +465,16 @@ run "azure_services_access_requires_public_access" {
   expect_failures = [var.azure_services_access_enabled]
 }
 
+run "allow_all_ip_addresses_requires_public_access" {
+  command = plan
+
+  variables {
+    allow_all_ip_addresses = true
+  }
+
+  expect_failures = [var.allow_all_ip_addresses]
+}
+
 run "storage_role_assignment_principal_type_is_validated" {
   command = plan
 

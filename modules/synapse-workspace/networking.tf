@@ -1,8 +1,10 @@
 # With public access enabled, Synapse's firewall still blocks every network
-# until a rule admits it. Public means public to all here, so one rule spans
-# the whole IPv4 range.
+# until a rule admits it. allow_all_ip_addresses opts in to one rule spanning
+# the whole IPv4 range; without it, the caller adds its own rules. The
+# address is the same as before the input existed, so a caller that sets it
+# keeps its existing rule.
 resource "azurerm_synapse_firewall_rule" "allow_all" {
-  count = var.public_network_access_enabled ? 1 : 0
+  count = var.public_network_access_enabled && var.allow_all_ip_addresses ? 1 : 0
 
   name                 = "AllowAll"
   synapse_workspace_id = azurerm_synapse_workspace.this.id

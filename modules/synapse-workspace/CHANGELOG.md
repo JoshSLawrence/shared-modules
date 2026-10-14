@@ -7,6 +7,17 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-10-13
+
+### Changed
+
+- **Breaking:** a public workspace (`public_network_access_enabled = true`) no longer gets the `AllowAll` firewall rule (0.0.0.0-255.255.255.255) by default. It is opt-in with the new `allow_all_ip_addresses` input, so a public workspace admits no network until the caller asks for the rule or adds its own firewall rules. The `AllowAllWindowsAzureIps` rule (`azure_services_access_enabled`) is unaffected.
+  - **Upgrading:** set `allow_all_ip_addresses = true` to keep the previous behaviour for public workspaces. The rule keeps its address (`azurerm_synapse_firewall_rule.allow_all[0]`), so the plan shows no change. Without it, the plan destroys `allow_all[0]`, and clients outside Azure (and any OpenTofu run that manages Synapse role assignments or managed private endpoints over the public endpoint) lose access.
+
+### Added
+
+- `allow_all_ip_addresses` (default `false`): add the `AllowAll` firewall rule to a public workspace. Validation rejects it on a private workspace.
+
 ## [v0.3.0] - 2026-10-11
 
 ### Added

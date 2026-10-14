@@ -173,7 +173,7 @@ run "existing_storage_without_role_assignment" {
   }
 }
 
-run "public_access_is_open_to_all_networks" {
+run "public_access_admits_no_network_by_default" {
   command = plan
 
   variables {
@@ -186,13 +186,27 @@ run "public_access_is_open_to_all_networks" {
   }
 
   assert {
-    condition     = azurerm_synapse_firewall_rule.allow_all[0].name == "AllowAll" && azurerm_synapse_firewall_rule.allow_all[0].start_ip_address == "0.0.0.0" && azurerm_synapse_firewall_rule.allow_all[0].end_ip_address == "255.255.255.255"
-    error_message = "A public workspace should get an AllowAll rule spanning every IPv4 address."
+    condition     = length(azurerm_synapse_firewall_rule.allow_all) == 0
+    error_message = "A public workspace should get no AllowAll rule unless allow_all_ip_addresses is set."
   }
 
   assert {
     condition     = local.storage_public_network_access_enabled == true
     error_message = "Storage the module creates should follow a public workspace."
+  }
+}
+
+run "allow_all_ip_addresses_opens_every_network" {
+  command = plan
+
+  variables {
+    public_network_access_enabled = true
+    allow_all_ip_addresses        = true
+  }
+
+  assert {
+    condition     = azurerm_synapse_firewall_rule.allow_all[0].name == "AllowAll" && azurerm_synapse_firewall_rule.allow_all[0].start_ip_address == "0.0.0.0" && azurerm_synapse_firewall_rule.allow_all[0].end_ip_address == "255.255.255.255"
+    error_message = "allow_all_ip_addresses should add an AllowAll rule spanning every IPv4 address."
   }
 }
 
@@ -691,8 +705,8 @@ run "azure_services_access_rule" {
   }
 
   assert {
-    condition     = length(azurerm_synapse_firewall_rule.allow_all) == 1
-    error_message = "The AllowAll rule should still be created for a public workspace."
+    condition     = length(azurerm_synapse_firewall_rule.allow_all) == 0
+    error_message = "Azure services access should not add the AllowAll IP rule; that is allow_all_ip_addresses."
   }
 }
 

@@ -4,7 +4,8 @@
 # the SQL administrator password stored in Key Vault.
 #
 # The workspace and vault are public (open to every network, still behind
-# Entra ID auth), so OpenTofu can reach their data planes from anywhere:
+# Entra ID auth; the workspace through allow_all_ip_addresses), so OpenTofu
+# can reach their data planes from anywhere:
 # Synapse RBAC, the managed private endpoint and the Key Vault secret all
 # need that. The data lake stays private: Synapse reaches it through a
 # managed private endpoint, once that endpoint is approved on the storage
@@ -82,6 +83,9 @@ module "synapse_workspace" {
   storage_managed_private_endpoints = ["dfs"]
 
   public_network_access_enabled = true
+  # OpenTofu creates Synapse role assignments over the public endpoint, so
+  # admit every network (access still needs Entra ID)
+  allow_all_ip_addresses = true
 
   sql_administrator_password_secret = {
     key_vault_id = module.key_vault.id
