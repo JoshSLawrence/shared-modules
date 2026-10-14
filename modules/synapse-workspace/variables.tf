@@ -219,8 +219,14 @@ variable "firewall_rules" {
     (Synapse role assignments, managed private endpoints) after them. An
     `azurerm_synapse_firewall_rule` you create outside the module is not
     ordered before those resources, so a first apply can fail with a
-    firewall error. `AllowAll` and `AllowAllWindowsAzureIps` are reserved
-    for `allow_all_ip_addresses` and `azure_services_access_enabled`.
+    firewall error.
+
+    Rule names must be unique ignoring letter case (Azure treats `Office`
+    and `office` as one rule). `AllowAll` and `AllowAllWindowsAzureIps` are
+    reserved, in any letter case, for `allow_all_ip_addresses` and
+    `azure_services_access_enabled`. No range may end at `0.0.0.0`, which is
+    Azure's marker for "allow Azure services": use
+    `azure_services_access_enabled` for that.
   EOT
   default     = {}
   nullable    = false
