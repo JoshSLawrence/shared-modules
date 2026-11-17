@@ -16,13 +16,6 @@ mock_provider "azurerm" {
       id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Synapse/workspaces/synw-test"
     }
   }
-
-  mock_resource "azurerm_storage_account" {
-    defaults = {
-      id                   = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Storage/storageAccounts/stsynwtest"
-      primary_dfs_endpoint = "https://stsynwtest.dfs.core.windows.net/"
-    }
-  }
 }
 
 mock_provider "random" {}
@@ -31,8 +24,13 @@ variables {
   name                = "synw-test"
   resource_group_name = "rg-test"
   location            = "eastus"
-  storage_account = {
-    name = "stsynwtest"
+  # Without identity defaults the mocked principal_id isn't a UUID, which
+  # azurerm 5.14.0+ rejects on azurerm_role_assignment. Skip the storage role
+  # assignment here; 01_ covers it.
+  existing_storage = {
+    data_lake_filesystem_id      = "https://stsynwtest.dfs.core.windows.net/synapse"
+    storage_account_id           = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Storage/storageAccounts/stsynwtest"
+    assign_blob_data_contributor = false
   }
   github_repo = {
     account_name    = "contoso"
