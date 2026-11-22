@@ -94,7 +94,7 @@ jobs:
       # Dependabot doesn't update `version`; bump it by hand now and then.
       - name: Set up mise
         id: setup
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           version: 2026.9.12
 
@@ -145,7 +145,7 @@ jobs:
       # Installs exactly the tool versions pinned in the module's own mise.toml
       - name: Set up mise
         id: setup
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           version: 2026.9.12
           working_directory: ${{ env.WORKING_DIR }}
@@ -231,7 +231,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up mise
-        uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+        uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           version: 2026.9.12
           working_directory: ${{ env.WORKING_DIR }}
